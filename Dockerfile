@@ -24,6 +24,7 @@ EXPOSE 3000
 
 # 设置环境变量
 ENV NODE_ENV=production
+ENV DOCKER_ENV=true
 
 # 启动命令
 CMD ["npm", "start"]
