@@ -1,3 +1,14 @@
+---
+title: LMArena Image Automator
+emoji: 🎨
+colorFrom: purple
+colorTo: blue
+sdk: docker
+sdk_version: "20.10"
+app_file: server.js
+pinned: false
+---
+
 # LMArenaImagenAutomator
 
 ## 📝 项目简介
@@ -17,439 +28,78 @@ LMArenaImagenAutomator 是一个基于 Puppeteer 的自动化图像生成工具�
 - 🌐 **代理支持**：支持 HTTP 和 SOCKS5 代理配置
 - 🎭 **特征伪装**：尽量伪装成真人操作的浏览器
 
-![Demo](https://github.com/user-attachments/assets/cc1b72f9-fbca-4784-820e-6b0a79e62cd5)
-
 ---
 
 ## 🚀 快速开始
 
-### 系统要求
-
-- **Node.js**: 16.0 或更高版本
-- **操作系统**: Windows、Linux 或 macOS
-- **浏览器**: Google Chrome (**推荐**) 或 Chromium
-
-### 安装步骤
-
-1. **克隆项目** 或下载解压项目文件
-
-2. **安装依赖**
-   ```bash
-   pnpm install
-   ```
-3. **生成配置文件**
-  首次运行会自动生成配置文件，也可以手动复制模板
-   ```
-   cp config.example.yaml config.yaml
-   ```
-
-4. **启动程序**
-   ```bash
-   # 标准模式
-   npm start
-
-   # 登录模式 (用于手动登录，该模式会自动禁用自动程序和无头模式)
-   # 如 Google 账号登录时出现浏览器不安全的提示可切换该模式登录后再使用默认模式启动
-   npm start -- -login
-
-   # 测试模式
-   npm test (-- -login)
-   ```
----
-
-## 📖 使用方法
-
-### ⚠️ 首次使用重要指引
-
-#### 1. 启动与登录
-- **关闭无头模式**：首次启动务必关闭无头模式。推荐使用 **登录模式**。（Linux 命令行用户请参阅文档结尾）
-- **手动登录**：网页加载完毕后，请手动完成账号登录，避免后续流程中断。
-
-#### 2. 验证流程
-- **触发验证**：在输入框输入任意内容并发送，触发服务条款及 CloudFlare Turnstile 验证。
-- **完成验证**：点击验证码并通过（可能包含 reCAPTCHA），同意条款后再次点击发送确保流程通畅。
-
-#### 3. 运行建议
-- **模式选择**：完成上述初始化后，可切换至无头模式运行。
-- **最佳实践**：为降低风控概率，**强烈建议**保持非无头模式（有界面）运行。
-
-
-### 接口使用说明
+### API 使用说明
 
 #### 1. OpenAI 兼容模式
 
-> [!WARNING]
-> 由于模拟真实浏览器操作，每次只能处理一个任务，其余任务将进入队列等待。为避免客户端超时影响体验，若当前任务数已达3个，后续请求将直接返回错误。因此，强烈推荐使用队列模式（`queue`），该模式下服务器会向客户端发送心跳包以确保连接持续活跃。
-
 **请求端点**
 ```
-POST http://127.0.0.1:3000/v1/chat/completions
+POST /v1/chat/completions
 ```
-
-<details>
-<summary>📄 查看API请求示例</summary>
 
 **请求示例**
 ```bash
-curl -X POST http://127.0.0.1:3000/v1/chat/completions \
+curl -X POST /v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your-secret-key" \
   -d '{
     "model": "gemini-3-pro-image-preview",
     "messages": [
       {
-        "type": "text",
-        "text": "generate a cat"
+        "role": "user",
+        "content": "generate a cat"
       }
     ]
   }'
 ```
 
-**响应格式**
-```json
-{
-  "id": "chatcmpl-1732374740123",
-  "object": "chat.completion",
-  "created": 1732374740,
-  "model": "lmarena-image",
-  "choices": [{
-    "index": 0,
-    "message": {
-      "role": "assistant",
-      "content": "![generated](data:image/jpeg;base64,/9j/4AAQ...)"
-    },
-    "finish_reason": "stop"
-  }]
-}
-```
-</details>
-
-> **关于 `model` 参数**：
-> - **必填**：必须填写支持的模型名称，否则将使用 LMArena 网页默认模型
-> - **查看可用模型**：
->   - 方式 1：访问 `/v1/models` 接口查询
->   - 方式 2：直接查看 `lib/backend/models.js` 文件
-> - **示例模型**：`gemini-3-pro-image-preview`、`seedream-4-high-res-fal`、`dall-e-3` 等
-
-#### 2. Queue 队列模式 (SSE) (推荐)
+#### 2. Queue 队列模式 (推荐)
 
 **请求端点**
 ```
-POST http://127.0.0.1:3000/v1/queue/join
+POST /v1/queue/join
 ```
-
-**SSE 事件类型**
-
-| 事件类型 | 数据格式 | 说明 |
-|---------|---------|------|
-| `status` | `{status: "queued", position: 1}` | 任务已入队 |
-| `status` | `{status: "processing"}` | 开始处理 |
-| `result` | `{status: "completed", image: "base64..."}` | 生成成功 |
-| `result` | `{status: "error", msg: "错误信息"}` | 生成失败 |
-| `heartbeat` | 时间戳 | 保持连接 |
-| `done` | `"[DONE]"` | 流结束 |
-
-<details>
-<summary>📄 查看 Node.js 示例代码</summary>
-
-```javascript
-import http from 'http';
-
-const options = {
-  hostname: '127.0.0.1',
-  port: 3000,
-  path: '/v1/queue/join',
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer your-secret-key'
-  }
-};
-
-const req = http.request(options, (res) => {
-  res.on('data', (chunk) => {
-    const lines = chunk.toString().split('\n');
-    for (const line of lines) {
-      if (line.startsWith('event: ')) {
-        const event = line.substring(7).trim();
-        console.log('事件类型:', event);
-      } else if (line.startsWith('data: ')) {
-        const data = JSON.parse(line.substring(6));
-        console.log('数据:', data);
-      }
-    }
-  });
-});
-
-req.write(JSON.stringify({
-  model: "gemini-3-pro-image-preview",
-  messages: [{ role: "user", content: "a cute cat" }]
-}));
-req.end();
-```
-
-</details>
-
-> **提示**：Queue 模式同样支持 `model` 参数，用法与 OpenAI 兼容模式一致。
 
 #### 3. 获取可用模型列表
 
 **请求端点**
 ```
-GET http://127.0.0.1:3000/v1/models
+GET /v1/models
 ```
-
-<details>
-<summary>📄 查看API请求示例</summary>
-
-**请求示例**
-```bash
-curl -X GET http://127.0.0.1:3000/v1/models \
-  -H "Authorization: Bearer your-secret-key"
-```
-
-**响应格式**
-```json
-{
-  "object": "list",
-  "data": [
-    {
-      "id": "seedream-4-high-res-fal",
-      "object": "model",
-      "created": 1732456789,
-      "owned_by": "lmarena"
-    },
-    {
-      "id": "gemini-3-pro-image-preview",
-      "object": "model",
-      "created": 1732456789,
-      "owned_by": "lmarena"
-    }
-  ]
-}
-```
-
-</details>
-
-> **说明**：
-> - 此接口在 **OpenAI 兼容模式** 和 **Queue 队列模式** 下均可用
-> - `created` 字段为当前请求时的时间戳
-> - 完整模型列表可在 `lib/backend/models.js` 文件中查看
-
-#### 4. 带图片的请求说明
-
-**支持格式**：PNG、JPEG、GIF、WebP  
-**最大数量**：5 张图片  
-**数据格式**：Base64 编码
-
-<details>
-<summary>📄 查看API请求示例</summary>
-
-**请求示例**
-```json
-{
-  "model": "gemini-3-pro-image-preview",
-  "messages": [{
-    "role": "user",
-    "content": [
-      {
-        "type": "text",
-        "text": "make it more colorful"
-      },
-      {
-        "type": "image_url",
-        "image_url": {
-          "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAA..."
-        }
-      }
-    ]
-  }]
-}
-```
-
-</details>
 
 ---
 
-## 🔧 常见问题
+## 🔧 配置
 
-<details>
-<summary>❌ 浏览器启动失败</summary>
+首次运行会自动生成配置文件。如需自定义配置，请参考 `docker-config.example.yaml`。
 
-**问题**: `Error: Failed to launch the browser process`
+### 重要配置项
 
-**解决方案**:
-- 确保已安装 Chrome 或 Chromium
-  - 大陆地区设备可能因网络原因 Puppeteer 自动安装失败
-  - 可尝试手动安装后填写 `chrome.path` (Linux 可使用 `which` 指令检索路径)
-- 检查 `config.yaml` 中的 `chrome.path` 是否正确
-- 尝试删除 `data` 目录后重新运行
-
-</details>
-
-<details>
-<summary>❌ GPU 相关错误</summary>
-
-**问题**: 无显卡服务器运行时出现 GPU 错误
-
-**解决方案**:
-- 该报错并不会影响程序运行，但是强烈建议在无显卡的设备上关闭GPU加速
-- 修改 `config.yaml` 中的`chrome.gpu`为false
-
-</details>
-
-<details>
-<summary>❌ 请求被拒绝 (429 Too Many Requests)</summary>
-
-**问题**: 并发请求过多
-
-**解决方案**:
-- 该问题仅存在于OpenAI兼容模式
-- 队列限制：1 个并发 + 2 个排队 (总计 3 个)
-- 修改 `config.yaml` 中的`queue.maxQueueSize` (不建议)
-- 等待当前任务完成后再提交新任务
-
-</details>
-
-<details>
-<summary>❌ reCAPTCHA 验证失败</summary>
-
-**问题**: 返回 `recaptcha validation failed`
-
-**解决方案**:
-- 这是 LMArena 的人机验证机制
-- 建议：
-  - 降低请求频率
-  - 首次使用时手动完成一次验证 (关闭 headless 模式)
-  - 使用稳定和纯净的 IP 地址 (可使用 [ping0.cc](https://ping0.cc) 查询IP地址纯净度)
-
-</details>
-
-<details>
-<summary>❌ 图像生成超时</summary>
-
-**问题**: 任务超过 120 秒未完成
-
-**解决方案**:
-- 检查网络连接是否稳定
-- 某些复杂提示词可能需要更长时间
-
-</details>
-
-<details>
-<summary>🐧 【Linux 环境下非无头模式运行】</summary>
-
-**问题**: 需要在 Linux 服务器上显示浏览器界面（如手动过验证码）
-
-**解决方案**:
-
-**方法一：X11 转发**
-- 推荐使用 WindTerm 等终端工具，开启 X-Server 功能
-- 在 SSH 会话设置中启用 X11 转发 (Forward X11)
-
-**方法二：Xvfb + X11VNC (推荐)**
-使用虚拟显示器运行程序，并通过 VNC 远程查看。
-
-1. **启动虚拟显示器并运行程序** (屏幕号 99 可按需修改):
-   ```bash
-   xvfb-run --server-num=99 --server-args="-ac -screen 0 1280x720x24" npm start
-   ```
-
-2. **将虚拟显示器映射至 VNC**:
-   ```bash
-   x11vnc -display :99 -localhost -nopw -once -noxdamage -ncache 10 -forever
-   ```
-
-3. **建立 SSH 隧道连接 VNC** (安全推荐):
-   ```bash
-   # 在本地终端运行，将服务器 5900 端口映射到本地
-   ssh -L 5900:127.0.0.1:5900 root@服务器IP
-   ```
-   随后使用 VNC 客户端连接 `127.0.0.1:5900` 即可。
-
-</details>
-
-<details>
-<summary>🎭 【浏览器特征伪装】</summary>
-
-**问题**: 如何优化浏览器特征伪装，减少验证码弹出频率？
-
-> **欢迎了解相关内容的前辈基于改进建议**
-
-**浏览器指纹伪装状态**:
-
-- **Windows 10 (官方 Chrome)**:
-  - 针对 Windows 10 原生 Chrome 环境优化指纹，已在 [antibot](https://bot.sannysoft.com/) 和 [CreepJS](https://abrahamjuliot.github.io/creepjs/) 测试中无红色高危警告
-- **Linux 环境**:
-  - ⚠️ 未完全通过 CreepJS 测试，但实际使用中影响较小，检测严格程度可能低于测试工具。
-
-**进一步优化建议**:
-
-完成后，可有效缓解验证码的弹出频率。
-
-**1. 使用官方 Chrome（推荐）**
-
-不推荐使用 Chromium，因为它缺少 MP4/H.264 解码器等插件，且被大量爬虫使用，会成为明显特征。
-```bash
-# 从 Google 官方下载 Chrome DEB安装包
-# 大陆服务器可手动下载安装包 https://www.google.com/chrome/?platform=linux
-curl -LO https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-apt install ./google-chrome-stable_current_amd64.deb -y
-```
-
-**配置方式**:
-
-修改 `config.yaml`，可使用`which google-chrome`指令查询路径
-```yaml
-chrome:
-  path: "/usr/bin/google-chrome"
-```
-
-使用环境变量可跳过 Puppeteer 自动下载 Chromium
-```bash
-export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD="true"
-```
-
-**2. 优化字体指纹**
-
-Linux 服务器通常只安装了极少量字体（甚至没有中文），这会增加指纹特征。
-
-**安装常用字体**:
-```bash
-# 安装中文字体（必备，否则中文提示词将显示方框）
-sudo apt install fonts-wqy-zenhei fonts-wqy-microhei
-
-# 安装微软核心字体（减少字体指纹差异）
-sudo apt install ttf-mscorefonts-installer
-```
-
-</details>
+- **认证 Token**：在 `config.yaml` 中设置 `server.auth`
+- **运行模式**：`openai` 或 `queue`
+- **浏览器设置**：无头模式、GPU 加速等
 
 ---
 
-## 📊 设备配置
+## 📊 设备要求
+
 | 资源 | 最低配置 | 推荐配置 |
 |------|---------|---------|
 | CPU | 1核 | 2核及以上 |
 | 内存 | 1GB | 2GB 及以上 |
 
-经测试，本项目可在以下环境中稳定运行：
-- Oracle 免费机：1C1G 配置，基于 Debian 12 系统。
-- 阿里云轻量应用服务器：2C2G 配置，基于 Debian 11 系统。
+---
 
 ## 📄 许可证和免责声明
 
 本项目采用 [MIT License](LICENSE) 开源。
 
-**免责声明**:
-本项目仅供学习交流使用。如果因使用该项目造成的任何后果（包括但不仅限于账号被禁用），作者和该项目均不承担任何责任。请遵守相关网站和服务的使用条款，以及相关数据的备份工作。
+**免责声明**: 本项目仅供学习交流使用。请遵守相关网站和服务的使用条款。
 
 ---
 
-## 📋 更新日志
-
-查看完整的版本历史和更新内容，请访问 [CHANGELOG.md](CHANGELOG.md)。
-
----
-
-**感谢 LMArena 提供图像生成服务！** 🎉
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
