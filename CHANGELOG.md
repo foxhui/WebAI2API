@@ -8,13 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] - 2025-12-06
 
 ### Added
+- **自动续登**
+  - 支持 Gemini Business 过期自动续登录
+- **内置XVFB指令**
+  - 内置了xvfb指令和x11vnc指令，只需要添加参数即可，无需记忆繁琐的指令
+
+### Changed
+- **优化分辨率**
+  - 优化浏览器窗口分辨率以确保窗口不会过大以及在服务器上消耗性能
+
+## [2.0.0] - 2025-12-06
+
+### Added
 - **支持新网站**
  - 支持对 Nano Banana Free 网站的支持
 
 ### Changed
 - **代码重构**
-  - 将项目核心迁移为 Playwright + Camoufox 的方案增强反检测
-  - 迁移前的 Puppeteer 版本已在分支中保留，但不影响使用的情况下不会再进行更新和修复！
+  - 本项目已从 Puppeteer 迁移至 Playwright + Camoufox，以应对日益复杂的反机器人检测机制。基于 Puppeteer 的旧版本代码已归档至 `puppeteer-edition` 分支，仅作留存，**不再提供更新与维护**。
 
 ## [1.3.1] - 2025-12-05
 
