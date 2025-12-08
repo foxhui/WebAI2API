@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2025-12-06
+## [2.0.1] - 2025-12-09
+
+### Fixed
+- **修复超时逻辑**
+  - 修复在等待生成结果时超时，但是客户端任务未终止且无任何通知的问题
+
+## [2.0.0] - 2025-12-08
 
 ### Added
 - **自动续登**
