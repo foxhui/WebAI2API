@@ -73,5 +73,5 @@ EXPOSE 3000
 ENV NODE_ENV=production
 ENV DOCKER_ENV=true
 
-# 启动命令（登录模式）
-CMD ["npm", "start", "--", "-login"]
+# 启动命令（控制台登录模式）
+CMD ["npm", "start", "--", "-login-console"]

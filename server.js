@@ -7,9 +7,12 @@ import { getModelsForBackend, resolveModelId } from './lib/backend/models.js';
 import { logger } from './lib/logger.js';
 import crypto from 'crypto';
 
+// 检测命令行参数
+const isLoginMode = process.argv.includes('-login');
+const isConsoleLoginMode = process.argv.includes('-login-console');
+
 // 使用统一后端获取配置和函数
 const { config, name, initBrowser, generateImage, TEMP_DIR } = getBackend();
-
 
 const PORT = config.server.port || 3000;
 const AUTH_TOKEN = config.server.auth;
@@ -145,6 +148,20 @@ async function processQueue() {
  * 启动 HTTP 服务器
  */
 async function startServer() {
+    // 如果是登录模式，不启动 HTTP 服务器
+    if (isLoginMode || isConsoleLoginMode) {
+        logger.info('服务器', '登录模式启动，不启动 HTTP 服务器');
+        
+        // 启动浏览器（登录模式会自动退出）
+        try {
+            browserContext = await initBrowser(config);
+        } catch (err) {
+            logger.error('服务器', '浏览器初始化失败', { error: err.message });
+            process.exit(1);
+        }
+        return;
+    }
+
     // 预先启动浏览器
     try {
         browserContext = await initBrowser(config);
