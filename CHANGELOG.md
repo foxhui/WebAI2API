@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **支持新网站**
   - 初步支持对 Gemini 网页版的支持
 
+### Changed
+- **接口逻辑优化**
+  - 移除了流式与非流式接口的统一开关限制，现在两种客户端可同时存在。
+  - **行为说明**：
+    -   **流式请求 (stream: true)**：支持无限排队，并通过心跳机制保持连接以等待结果。
+    -   **非流式请求**：在队列未满时正常处理；当队列满时，将立即拒绝并返回明确的拒绝原因，但仍受 `maxQueueSize` 限制。
+
 ## [2.2.3] - 2025-12-12
 
 ### Added

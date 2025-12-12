@@ -6,16 +6,11 @@ server:
   port: 3000
   # 鉴权 Token (Bearer Token) (可使用 npm run genkey 生成)
   auth: sk-change-me-to-your-secure-key
-  # 保活
+  # 流式请求心跳设置 (自动对 stream: true 的请求发送心跳防止超时)
   keepalive:
-    # 是否启用流式保活
-    # 使用OpenAI接口的标准流式接口格式，客户端请求需强制使用 stream: true
-    enable: false
-
     # 心跳模式
-    # "comment": (推荐) 发送 :keepalive 注释。不污染数据，绝大多数 SDK 支持，不会影响接口标准
-    # "content": (备用) 在 choices[0].delta.content = "" 中发送空字符串
-    #            仅当你使用的客户端非常特殊，必须收到 data JSON 包才重置超时时使用
+    # "comment": (推荐) 发送 :keepalive 注释，不污染数据
+    # "content": (备用) 发送空 delta，仅当客户端必须收到 JSON 包才重置超时时使用
     mode: "comment"
 
 backend:

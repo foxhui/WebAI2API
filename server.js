@@ -229,7 +229,6 @@ const {
 
 const PORT = config.server.port || 3000;
 const AUTH_TOKEN = config.server.auth;
-const KEEPALIVE_ENABLED = config.server.keepalive?.enable ?? true;
 const KEEPALIVE_MODE = config.server.keepalive?.mode || 'comment';
 
 // --- 全局状态 ---
@@ -454,18 +453,14 @@ async function startServer() {
                     const messages = data.messages;
                     const isStreaming = data.stream === true;
 
-                    // Stream 参数验证
-                    if (KEEPALIVE_ENABLED && !isStreaming) {
-                        res.writeHead(400, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ error: 'Stream mode is required when keepalive is enabled. Please set "stream": true in your request.' }));
-                        return;
-                    }
-
-                    // 限流检查（仅在未开启 keepalive 时限制）
-                    if (!KEEPALIVE_ENABLED && processingCount + queue.length >= MAX_CONCURRENT + MAX_QUEUE_SIZE) {
-                        logger.warn('服务器', '请求过多，已拒绝 (最大队列限制)', { id });
+                    // 限流检查：非流式请求在队列满时拒绝
+                    const totalPending = processingCount + queue.length;
+                    if (!isStreaming && totalPending >= MAX_QUEUE_SIZE) {
+                        logger.warn('服务器', '非流式请求被拒绝 (队列已满)', { id, queueSize: totalPending });
                         res.writeHead(429, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ error: 'Too Many Requests. Server is busy.' }));
+                        res.end(JSON.stringify({
+                            error: `Server is busy (queue: ${totalPending}/${MAX_QUEUE_SIZE}). Please use streaming mode (stream: true) to wait in queue, or try again later.`
+                        }));
                         return;
                     }
 
@@ -646,7 +641,7 @@ async function startServer() {
 
     server.listen(PORT, () => {
         logger.info('服务器', `HTTP 服务器启动成功，监听端口 ${PORT}`);
-        logger.info('服务器', `流式保活: ${KEEPALIVE_ENABLED ? '已启用 (' + KEEPALIVE_MODE + ' 模式)' : '已禁用'}`);
+        logger.info('服务器', `流式心跳模式: ${KEEPALIVE_MODE}`);
         logger.info('服务器', `最大队列: ${MAX_QUEUE_SIZE}，最大图片数量: ${IMAGE_LIMIT}`);
     });
 }
