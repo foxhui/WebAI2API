@@ -10,6 +10,7 @@ LMArenaImagenAutomator 是一个基于 Playwright + Camoufox 的自动化图像�
   - [Gemini Enterprise Business](https://business.gemini.google/)
   - [Nano Banana Free](https://nanobananafree.ai/)
   - [zAI](https://zai.is/)
+  - [Google Gemini](https://gemini.google.com/)
   - 未来可能支持更多网站。。。
 
 ### ✨ 主要特性

@@ -21,6 +21,7 @@ server:
 backend:
   # 适配器设置
   # - lmarena (LMArena)
+  # - gemini (Gemini 网页版)
   # - gemini_biz (Gemini Enterprise Business)
   # - nanobananafree_ai (Nano Banana Free)
   # - zai_is (zAI)
