@@ -58,8 +58,9 @@ export function createRouter(context) {
      * 处理 GET /v1/cookies
      * @param {import('http').ServerResponse} res - HTTP 响应
      * @param {string} requestId - 请求 ID
+     * @param {string} [domain] - 可选，指定获取某个域名的 Cookies
      */
-    async function handleCookies(res, requestId) {
+    async function handleCookies(res, requestId, domain) {
         const browserContext = queueManager.getBrowserContext();
 
         if (!browserContext?.page) {
@@ -69,7 +70,16 @@ export function createRouter(context) {
 
         try {
             const context = browserContext.page.context();
-            const cookies = await context.cookies();
+            let cookies;
+
+            if (domain) {
+                // 指定域名时，只获取该域名的 Cookies
+                cookies = await context.cookies(domain.startsWith('http') ? domain : `https://${domain}`);
+            } else {
+                // 默认获取所有 Cookies
+                cookies = await context.cookies();
+            }
+
             sendJson(res, 200, { cookies });
         } catch (err) {
             logger.error('服务器', '获取 Cookies 失败', { id: requestId, error: err.message });
@@ -179,11 +189,15 @@ export function createRouter(context) {
         }
 
         // 路由分发
-        if (req.method === 'GET' && req.url === '/v1/models') {
+        const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
+        const pathname = parsedUrl.pathname;
+
+        if (req.method === 'GET' && pathname === '/v1/models') {
             handleModels(res);
-        } else if (req.method === 'GET' && req.url === '/v1/cookies') {
-            await handleCookies(res, requestId);
-        } else if (req.method === 'POST' && req.url?.startsWith('/v1/chat/completions')) {
+        } else if (req.method === 'GET' && pathname === '/v1/cookies') {
+            const domain = parsedUrl.searchParams.get('domain');
+            await handleCookies(res, requestId, domain);
+        } else if (req.method === 'POST' && pathname.startsWith('/v1/chat/completions')) {
             await handleChatCompletions(req, res, requestId);
         } else {
             res.writeHead(404);

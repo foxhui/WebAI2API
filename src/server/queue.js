@@ -51,7 +51,7 @@ import {
  */
 export function createQueueManager(queueConfig, callbacks) {
     const { maxConcurrent, maxQueueSize, keepaliveMode } = queueConfig;
-    const { initBrowser, generateImage, config } = callbacks;
+    const { initBrowser, generateImage, config, navigateToMonitor } = callbacks;
 
     /** @type {TaskContext[]} */
     const queue = [];
@@ -149,7 +149,13 @@ export function createQueueManager(queueConfig, callbacks) {
      */
     async function processQueue() {
         // 如果正在处理的任务已满，或队列为空，则停止
-        if (processingCount >= maxConcurrent || queue.length === 0) return;
+        if (processingCount >= maxConcurrent || queue.length === 0) {
+            // 队列空闲时，触发监控跳转
+            if (processingCount === 0 && queue.length === 0 && navigateToMonitor) {
+                navigateToMonitor().catch(() => { });
+            }
+            return;
+        }
 
         // 取出下一个任务
         const task = queue.shift();
@@ -201,6 +207,10 @@ export function createQueueManager(queueConfig, callbacks) {
      */
     async function initializeBrowser() {
         browserContext = await initBrowser(config);
+        // 初始化完成后，触发首次监控跳转
+        if (navigateToMonitor) {
+            navigateToMonitor().catch(() => { });
+        }
         return browserContext;
     }
 

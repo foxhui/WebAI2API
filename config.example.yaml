@@ -30,6 +30,8 @@ backend:
     type:
       - zai_is
       - lmarena
+    # 挂机监控
+    monitor: zai_is
 
   # Gemini Business 设置
   geminiBiz:

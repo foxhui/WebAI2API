@@ -93,7 +93,10 @@ const queueManager = createQueueManager(
     {
         initBrowser,
         generateImage,
-        config
+        config,
+        navigateToMonitor: backend.navigateToMonitor
+            ? () => backend.navigateToMonitor(config)
+            : null
     }
 );
 

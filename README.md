@@ -230,8 +230,9 @@ curl -X GET http://127.0.0.1:3000/v1/models \
 **功能说明**：可利用本项目的自动续登功能获取最新Cookie给其他工具使用。
 
 **请求端点**
+支持使用`domain`参数获取指定域名的Cookie
 ```
-GET http://127.0.0.1:3000/v1/cookies
+GET http://127.0.0.1:3000/v1/cookies (?domain=lmarena.ai)
 ```
 
 <details>

@@ -15,11 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 添加下载 GeoLite2-City.mmdb 数据库的步骤
 - **增加服务器自检**
   - 自动排查缺少的依赖和未应用的补丁并提供解决方案，降低使用门槛
+- **聚合模式监控**
+  - 在聚合模式下闲时跳转需要监控的网站，确保登录过期自动续登保持Cookie为最新
 
 ### Changed
 - **重构部分**
   - 重构服务器部分，并整理项目目录
   - 加强注释，便于后期维护
+  - 支持获取指定域名的 Cookie
 
 ## [2.3.0] - 2025-12-12
 

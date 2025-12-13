@@ -48,8 +48,10 @@ const MergedBackend = {
     name: 'merge',
     _globalBrowser: null,
     _globalPage: null,
+    _config: null,  // 保存配置引用
 
     initBrowser: async (cfg) => {
+        MergedBackend._config = cfg;  // 保存配置
         if (MergedBackend._globalPage && !MergedBackend._globalPage.isClosed()) {
             return { browser: MergedBackend._globalBrowser, page: MergedBackend._globalPage, config: cfg };
         }
@@ -100,14 +102,14 @@ const MergedBackend = {
         const subContext = {
             ...ctx,
             page: MergedBackend._globalPage,
-            config: cfg
+            config: ctx.config
         };
 
         return adapter.generateImage(subContext, prompt, paths, realId, meta);
     },
 
     resolveModelId: (modelKey) => {
-        const types = config.backend.merge.type;
+        const types = MergedBackend._config.backend.merge.type;
 
         // 支持 backend/model 格式指定后端 (如 lmarena/seedream-4.5)
         if (modelKey.includes('/')) {
@@ -128,7 +130,7 @@ const MergedBackend = {
     },
 
     getModels: () => {
-        const types = config.backend.merge.type;
+        const types = MergedBackend._config.backend.merge.type;
         const allModels = [];
         const seenIds = new Set();
 
@@ -167,7 +169,7 @@ const MergedBackend = {
     },
 
     getImagePolicy: (modelKey) => {
-        const types = config.backend.merge.type;
+        const types = MergedBackend._config.backend.merge.type;
 
         // 支持 backend/model 格式
         if (modelKey.includes('/')) {
@@ -184,6 +186,49 @@ const MergedBackend = {
             if (realId) return modelsModule.getImagePolicy(type, modelKey);
         }
         return 'optional';
+    },
+
+    /**
+     * 空闲时导航到监控页面（用于自动续签 Cookie）
+     * @param {object} cfg - 配置对象
+     * @returns {Promise<void>}
+     */
+    navigateToMonitor: async (cfg) => {
+        const monitorType = cfg.backend.merge?.monitor;
+        if (!monitorType) return;
+
+        const page = MergedBackend._globalPage;
+        if (!page || page.isClosed()) return;
+
+        // 适配器目标 URL 映射
+        const TARGET_URLS = {
+            'zai_is': 'https://zai.is/',
+            'lmarena': 'https://lmarena.ai/',
+            'gemini_biz': cfg.backend.geminiBiz?.entryUrl || 'https://aistudio.google.com/',
+            'gemini': 'https://gemini.google.com/',
+            'nanobananafree_ai': 'https://nanobananafree.ai/'
+        };
+
+        const targetUrl = TARGET_URLS[monitorType];
+        if (!targetUrl) {
+            logger.warn('适配器', `[Monitor] 未知的监控类型: ${monitorType}`);
+            return;
+        }
+
+        // 检查当前是否已在目标网站
+        const currentUrl = page.url();
+        if (currentUrl.includes(new URL(targetUrl).hostname)) {
+            logger.debug('适配器', `[Monitor] 已在目标网站: ${monitorType}`);
+            return;
+        }
+
+        logger.info('适配器', `[Monitor] 空闲中，跳转至: ${monitorType} (${targetUrl})`);
+        try {
+            await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            // 全局 navigationHandler 会自动处理登录
+        } catch (e) {
+            logger.warn('适配器', `[Monitor] 跳转失败: ${e.message}`);
+        }
     }
 };
 

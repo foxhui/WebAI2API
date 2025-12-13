@@ -94,7 +94,8 @@ export function loadConfig() {
     if (!config.backend.merge) {
         config.backend.merge = {
             enable: false,
-            type: ['zai_is', 'lmarena']
+            type: ['zai_is', 'lmarena'],
+            monitor: null
         };
     }
 
