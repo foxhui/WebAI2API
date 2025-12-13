@@ -230,7 +230,7 @@ export async function initBrowserBase(config, options) {
         i_know_what_im_doing: true,
         block_webrtc: true,
         exclude_addons: ['UBO'],
-        geoip: false
+        geoip: true
     };
 
     // Headless 模式配置

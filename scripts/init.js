@@ -6,7 +6,6 @@
  */
 
 import fs from 'fs';
-import { execSync } from 'child_process';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
@@ -15,6 +14,7 @@ import compressing from 'compressing';
 import yaml from 'yaml';
 import { logger } from '../src/utils/logger.js';
 import { getHttpProxy, getProxyConfig } from '../src/utils/proxy.js';
+import { select } from '@inquirer/prompts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.join(__dirname, '..');
@@ -451,17 +451,52 @@ function updateConfigPath(platform, camoufoxDir) {
             logger.warn('初始化', '无法读取配置文件或转换代理，不使用代理');
         }
 
-        // 安装 better-sqlite3
-        await installBetterSqlite3(platform, arch, abi, proxyUrl);
+        // 检查是否为自定义模式
+        const isCustomMode = process.argv.includes('-custom');
 
-        // 安装 Camoufox
-        await installCamoufox(platform, arch, proxyUrl);
+        if (isCustomMode) {
+            // 自定义模式：交互式选择步骤
+            const action = await select({
+                message: '请选择要执行的操作:',
+                choices: [
+                    { name: '安装 better-sqlite3 预编译文件', value: 'sqlite' },
+                    { name: '安装 Camoufox 浏览器', value: 'camoufox' },
+                    { name: '安装 GeoLite2-City.mmdb 数据库', value: 'geolite' },
+                    { name: '修复 macOS 环境下的 properties.json', value: 'macos_fix' },
+                    { name: '修复 version.json 缺失', value: 'version_fix' },
+                    { name: '退出', value: 'exit' }
+                ]
+            });
 
-        // 修复 Camoufox 环境 (Linux)
-        fixCamoufoxEnv();
+            switch (action) {
+                case 'sqlite':
+                    await installBetterSqlite3(platform, arch, abi, proxyUrl);
+                    break;
+                case 'camoufox':
+                    await installCamoufox(platform, arch, proxyUrl);
+                    break;
+                case 'geolite':
+                    await downloadGeoLiteDb(proxyUrl, true); // 强制下载
+                    break;
+                case 'macos_fix':
+                    fixMacOSProperties();
+                    break;
+                case 'version_fix':
+                    fixVersionJson();
+                    break;
+                case 'exit':
+                    logger.info('初始化', '已退出');
+                    break;
+            }
+        } else {
+            // 正常模式：执行所有步骤
+            await installBetterSqlite3(platform, arch, abi, proxyUrl);
+            await installCamoufox(platform, arch, proxyUrl);
+            await downloadGeoLiteDb(proxyUrl);
+        }
 
         logger.info('初始化', '========================================');
-        logger.info('初始化', '所有依赖安装完成！');
+        logger.info('初始化', '操作完成！');
         logger.info('初始化', '========================================');
         process.exit(0);
 
@@ -472,66 +507,78 @@ function updateConfigPath(platform, camoufoxDir) {
 })();
 
 /**
- * 自动修复 Linux 下 Camoufox 的路径依赖
- * 目的：建立软链接，欺骗 camoufox-js 以为浏览器安装在默认目录，从而防止自动下载
+ * 下载 GeoLite2-City.mmdb 到 camoufox 目录
+ * @param {string|null} proxyUrl - 代理 URL
+ * @param {boolean} [force=false] - 是否强制下载（忽略已存在检查）
  */
-function fixCamoufoxEnv() {
-    // 1. 仅在 Linux 下执行
-    if (os.platform() !== 'linux') return;
+async function downloadGeoLiteDb(proxyUrl, force = false) {
+    const camoufoxDir = path.join(PROJECT_ROOT, 'camoufox');
+    const destPath = path.join(camoufoxDir, 'GeoLite2-City.mmdb');
 
-    logger.info('初始化', '正在检查 Camoufox 环境配置...');
+    // 确保目录存在
+    if (!fs.existsSync(camoufoxDir)) {
+        fs.mkdirSync(camoufoxDir, { recursive: true });
+    }
 
-    // --- 路径配置 ---
-    // 假设浏览器存放在项目根目录下的 camoufox 文件夹中
-    // 依赖 init.js 中已定义的 PROJECT_ROOT 变量
-    const customBrowserDir = path.join(PROJECT_ROOT, 'camoufox');
-
-    // 官方默认缓存路径: ~/.cache/camoufox
-    const defaultCacheDir = path.join(os.homedir(), '.cache');
-    const defaultLinkPath = path.join(defaultCacheDir, 'camoufox');
-
-    // 2. 预检查：确保源文件存在
-    if (!fs.existsSync(customBrowserDir)) {
-        logger.warn('初始化', `未找到自定义浏览器目录: ${customBrowserDir}`);
-        logger.warn('初始化', `请确保已将浏览器解压至项目根目录的 camoufox 文件夹`);
+    // 如果已存在且非强制模式，跳过下载
+    if (!force && fs.existsSync(destPath)) {
+        logger.info('初始化', 'GeoLite2-City.mmdb 已存在，跳过下载');
         return;
     }
 
-    // 3. 检查并修复软链接
-    if (fs.existsSync(defaultLinkPath)) {
-        const stats = fs.lstatSync(defaultLinkPath);
-        if (stats.isSymbolicLink()) {
-            const currentTarget = fs.readlinkSync(defaultLinkPath);
-            if (currentTarget === customBrowserDir) {
-                logger.info('初始化', 'Camoufox 路径映射已就绪');
-                return;
-            }
-            logger.info('初始化', '路径映射不一致，正在更新...');
-            fs.unlinkSync(defaultLinkPath);
-        } else {
-            // 备份旧的实体文件夹
-            logger.warn('初始化', `默认路径被占用，正在备份...`);
-            fs.renameSync(defaultLinkPath, `${defaultLinkPath}_backup_${Date.now()}`);
-        }
-    } else {
-        if (!fs.existsSync(defaultCacheDir)) {
-            fs.mkdirSync(defaultCacheDir, { recursive: true });
-        }
+    logger.info('初始化', '开始下载 GeoLite2-City.mmdb...');
+    const url = 'https://github.com/P3TERX/GeoLite.mmdb/releases/latest/download/GeoLite2-City.mmdb';
+    await downloadFile(url, destPath, proxyUrl);
+    logger.info('初始化', `GeoLite2-City.mmdb 下载完成: ${destPath}`);
+}
+
+/**
+ * 修复 macOS 环境下的 properties.json
+ */
+function fixMacOSProperties() {
+    const platform = os.platform();
+    if (platform !== 'darwin') {
+        logger.warn('初始化', '此操作仅适用于 macOS 系统');
+        return;
     }
 
-    // 4. 创建软链接
-    try {
-        // 使用 shell 命令创建软链接，比 fs.symlinkSync 在某些 Linux 环境下更可靠
-        execSync(`ln -sf "${customBrowserDir}" "${defaultLinkPath}"`);
+    const camoufoxDir = path.join(PROJECT_ROOT, 'camoufox');
+    const resourcesPath = path.join(camoufoxDir, 'Camoufox.app', 'Contents', 'Resources', 'properties.json');
+    const macOSDir = path.join(camoufoxDir, 'Camoufox.app', 'Contents', 'MacOS');
+    const macOSPath = path.join(macOSDir, 'properties.json');
 
-        // 验证链接是否有效
-        if (fs.existsSync(defaultLinkPath)) {
-            const linkTarget = fs.readlinkSync(defaultLinkPath);
-            logger.info('初始化', `成功创建路径映射: ${defaultLinkPath} -> ${linkTarget}`);
-        } else {
-            logger.warn('初始化', '软链接创建后无法访问，可能存在权限问题');
-        }
-    } catch (e) {
-        logger.error('初始化', `创建软链接失败: ${e.message}`);
+    if (!fs.existsSync(resourcesPath)) {
+        logger.error('初始化', `源文件不存在: ${resourcesPath}`);
+        logger.error('初始化', '请先安装 Camoufox 浏览器');
+        return;
     }
+
+    if (!fs.existsSync(macOSDir)) {
+        fs.mkdirSync(macOSDir, { recursive: true });
+    }
+
+    fs.copyFileSync(resourcesPath, macOSPath);
+    logger.info('初始化', `已复制 properties.json 到 MacOS 目录: ${macOSPath}`);
+}
+
+/**
+ * 修复 version.json 缺失
+ */
+function fixVersionJson() {
+    const camoufoxDir = path.join(PROJECT_ROOT, 'camoufox');
+    const versionJsonPath = path.join(camoufoxDir, 'version.json');
+
+    if (!fs.existsSync(camoufoxDir)) {
+        logger.error('初始化', `camoufox 目录不存在: ${camoufoxDir}`);
+        logger.error('初始化', '请先安装 Camoufox 浏览器');
+        return;
+    }
+
+    const versionData = {
+        version: "135.0",
+        release: "beta.24"
+    };
+
+    fs.writeFileSync(versionJsonPath, JSON.stringify(versionData, null, 2), 'utf8');
+    logger.info('初始化', `已生成 version.json: ${versionJsonPath}`);
 }

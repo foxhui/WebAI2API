@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.4.0] - 2025-12-13
 
+### Added
+- **浏览器伪装**
+  - 适配了 GEOIP 数据库，支持时区伪装，完善伪装机制
+- **初始化脚本**
+  - 支持自定义初始化步骤 npm run init -- -custom
+  - 添加下载 GeoLite2-City.mmdb 数据库的步骤
+- **增加服务器自检**
+  - 自动排查缺少的依赖和未应用的补丁并提供解决方案，降低使用门槛
+
 ### Changed
 - **重构部分**
   - 重构服务器部分，并整理项目目录

@@ -14,9 +14,17 @@
  */
 
 import http from 'http';
-import { getBackend } from './src/backend/index.js';
-import { logger } from './src/utils/logger.js';
-import { handleDisplayParams, createQueueManager, createRouter } from './src/server/index.js';
+
+// ==================== 启动前自检 ====================
+import { runPreflight } from './src/utils/preflight.js';
+// Xvfb 子进程跳过自检（父进程已完成）
+if (!process.env.XVFB_RUNNING) {
+    runPreflight();
+}
+// ==================== 加载其他依赖 ====================
+const { getBackend } = await import('./src/backend/index.js');
+const { logger } = await import('./src/utils/logger.js');
+const { handleDisplayParams, createQueueManager, createRouter } = await import('./src/server/index.js');
 
 // ==================== 命令行参数处理 ====================
 

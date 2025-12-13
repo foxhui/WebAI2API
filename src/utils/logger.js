@@ -70,7 +70,8 @@ export function log(level, mod, msg, meta = {}) {
     if (!shouldLog(level)) return;
 
     const ts = formatTime();
-    const levelTag = level.toUpperCase();
+    const levelMap = { debug: 'DBUG', info: 'INFO', warn: 'WARN', error: 'ERRO' };
+    const levelTag = levelMap[level.toLowerCase()] || level.toUpperCase().slice(0, 4);
     const base = `${ts} [${levelTag}] [${mod}] ${msg}`;
 
     const metaStr = Object.keys(meta).length
