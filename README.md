@@ -27,7 +27,9 @@ LMArenaImagenAutomator 是一个基于 Playwright + Camoufox 的自动化图像�
 
 ## 🚀 快速部署
 
-本项目支持 **源码直接运行** 和 **Docker 容器化部署** 两种方式。
+本项目支持 **源码直接运行（推荐）** 和 **Docker 容器化部署** 两种方式。
+
+> 因开发者自用时是直接源码运行，Docker未经测试可能更新滞后且可能有问题，如有相关建议可提出，帮助项目完善 Docker 的运行方式
 
 ### 📋 环境要求
 - **Node.js**: v20.0.0+ (ABI 115+)
@@ -48,8 +50,9 @@ LMArenaImagenAutomator 是一个基于 Playwright + Camoufox 的自动化图像�
 
 2. **启动服务**
    ```bash
-   npm start -- -login  # 首次运行（进入登录模式）
-   npm start            # 标准运行
+   npm start -- -login              # 首次运行（进入首个Worker的登录模式）
+   npm start -- -login=workerName   # 首次运行（进入指定Worker的登录模式）
+   npm start                        # 标准运行
    ```
 
 ### 🐳 方式二：Docker 部署
@@ -121,7 +124,7 @@ backend:
 - 同一 `instance` 下的 `workers` 共享浏览器数据和登录状态
 - 使用 Google OAuth 等统一登录时，只需登录一次即可用于所有 Worker
 
-详细配置请参考 `config.example.yaml` 和 `config.md`。
+详细配置请参考 `config.example.yaml`。
 
 
 ### 接口使用说明
