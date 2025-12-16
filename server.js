@@ -58,7 +58,8 @@ const {
     TEMP_DIR,
     resolveModelId,
     getModels,
-    getImagePolicy
+    getImagePolicy,
+    getModelType
 } = backend;
 
 /** @type {number} 服务器端口 */
@@ -102,16 +103,13 @@ const queueManager = createQueueManager(
             : null
     }
 );
-
-/**
- * 路由处理器：负责 API 路由分发和鉴权
- */
 const handleRequest = createRouter({
     authToken: AUTH_TOKEN,
     backendName,
     getModels,
     resolveModelId,
     getImagePolicy,
+    getModelType,
     tempDir: TEMP_DIR,
     imageLimit: IMAGE_LIMIT,
     queueManager

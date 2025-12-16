@@ -28,6 +28,7 @@ function checkAuth(req, authToken) {
  * @param {Function} context.getModels - 获取模型列表函数
  * @param {Function} context.resolveModelId - 解析模型 ID 函数
  * @param {Function} context.getImagePolicy - 获取图片策略函数
+ * @param {Function} context.getModelType - 获取模型类型函数
  * @param {string} context.tempDir - 临时目录
  * @param {number} context.imageLimit - 图片数量限制
  * @param {object} context.queueManager - 队列管理器
@@ -40,6 +41,7 @@ export function createRouter(context) {
         getModels,
         resolveModelId,
         getImagePolicy,
+        getModelType,
         tempDir,
         imageLimit,
         queueManager
@@ -138,6 +140,7 @@ export function createRouter(context) {
                 backendName,
                 resolveModelId,
                 getImagePolicy,
+                getModelType,
                 requestId,
                 logger
             });

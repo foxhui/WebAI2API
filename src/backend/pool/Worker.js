@@ -422,6 +422,27 @@ export class Worker {
     }
 
     /**
+     * 获取模型类型
+     */
+    getModelType(modelKey) {
+        if (this.type === 'merge') {
+            if (modelKey.includes('/')) {
+                const [specifiedType, actualModel] = modelKey.split('/', 2);
+                if (this.mergeTypes.includes(specifiedType)) {
+                    return registry.getModelType(specifiedType, actualModel);
+                }
+            }
+            for (const type of this.mergeTypes) {
+                const realId = registry.resolveModelId(type, modelKey);
+                if (realId) return registry.getModelType(type, modelKey);
+            }
+            return 'image';
+        } else {
+            return registry.getModelType(this.type, modelKey);
+        }
+    }
+
+    /**
      * 导航到监控页面（空闲时）
      */
     async navigateToMonitor() {

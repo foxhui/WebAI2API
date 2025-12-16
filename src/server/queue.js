@@ -135,13 +135,16 @@ export function createQueueManager(queueConfig, callbacks) {
             }
 
             // 发送成功响应
+            logger.info('服务器', '准备发送响应...', { id, isStreaming, contentLength: finalContent.length });
             if (isStreaming) {
                 const chunk = buildChatCompletionChunk(finalContent, modelName);
                 sendSse(res, chunk);
                 sendSseDone(res);
+                logger.info('服务器', '流式响应已结束', { id });
             } else {
                 const response = buildChatCompletion(finalContent, modelName);
                 sendJson(res, 200, response);
+                logger.info('服务器', 'JSON 响应已发送', { id });
             }
 
         } catch (err) {

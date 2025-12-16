@@ -197,7 +197,8 @@ class AdapterRegistry {
             object: 'model',
             created: Math.floor(Date.now() / 1000),
             owned_by: id,
-            image_policy: m.imagePolicy
+            image_policy: m.imagePolicy,
+            type: m.type || 'image' // Default to image if not specified
         }));
 
         return { object: 'list', data };
@@ -244,6 +245,22 @@ class AdapterRegistry {
     }
 
     /**
+     * 获取模型的类型
+     * @param {string} adapterId - 适配器 ID
+     * @param {string} modelKey - 模型 key
+     * @returns {string} 'text' | 'image'
+     */
+    getModelType(adapterId, modelKey) {
+        const adapter = this.getAdapter(adapterId);
+        if (!adapter || !adapter.models) {
+            return 'image';
+        }
+
+        const model = adapter.models.find(m => m.id === modelKey);
+        return model?.type || 'image';
+    }
+
+    /**
      * 聚合所有适配器的模型列表
      * @returns {object}
      */
@@ -258,7 +275,8 @@ class AdapterRegistry {
                         object: 'model',
                         created: Math.floor(Date.now() / 1000),
                         owned_by: id,
-                        image_policy: m.imagePolicy
+                        image_policy: m.imagePolicy,
+                        type: m.type || 'image'
                     });
                 }
             }

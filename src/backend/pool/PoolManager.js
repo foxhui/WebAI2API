@@ -250,6 +250,18 @@ export class PoolManager {
     }
 
     /**
+     * 获取模型类型
+     */
+    getModelType(modelKey) {
+        for (const worker of this.workers) {
+            if (worker.supports(modelKey)) {
+                return worker.getModelType(modelKey);
+            }
+        }
+        return 'image';
+    }
+
+    /**
      * 获取指定实例的 Cookies
      */
     async getCookies(instanceName, domain) {

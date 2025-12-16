@@ -19,9 +19,6 @@ const EXAMPLE_CONFIG_PATH = path.join(process.cwd(), 'config.example.yaml');
 // 模块级缓存：确保配置只从磁盘读取一次
 let cachedConfig = null;
 
-// 有效的适配器类型
-const VALID_ADAPTER_TYPES = ['lmarena', 'gemini', 'gemini_biz', 'nanobananafree_ai', 'zai_is', 'merge'];
-
 /**
  * 解析用户数据目录路径
  * @param {string|undefined} userDataMark - 用户数据标记
@@ -84,9 +81,9 @@ function validateWorker(worker, instanceName, index) {
     if (!worker.type) {
         throw new Error(`instances[${instanceName}].workers[${index}] (${worker.name}) 缺少必需字段: type`);
     }
-    if (!VALID_ADAPTER_TYPES.includes(worker.type)) {
-        throw new Error(`Worker "${worker.name}" 的 type "${worker.type}" 无效。有效值: ${VALID_ADAPTER_TYPES.join(', ')}`);
-    }
+    // 移除对 type 的硬编码校验，允许动态加载新适配器
+    // if (!VALID_ADAPTER_TYPES.includes(worker.type)) { ... }
+
     if (worker.type === 'merge') {
         if (!worker.mergeTypes || !Array.isArray(worker.mergeTypes) || worker.mergeTypes.length === 0) {
             throw new Error(`Worker "${worker.name}" 类型为 merge，但缺少有效的 mergeTypes 数组`);

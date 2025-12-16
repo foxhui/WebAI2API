@@ -111,6 +111,18 @@ export function getBackend() {
         },
 
         /**
+         * 获取模型类型
+         * @param {string} modelKey - 模型 key
+         * @returns {string} 'text' | 'image'
+         */
+        getModelType: (modelKey) => {
+            if (!poolManager) {
+                return 'image';
+            }
+            return poolManager.getModelType(modelKey);
+        },
+
+        /**
          * 获取 Cookies
          * @param {string} [workerName] - Worker 名称
          * @param {string} [domain] - 域名
