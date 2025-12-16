@@ -22,9 +22,7 @@ import { logger } from '../../utils/logger.js';
 
 // --- 配置常量 ---
 const TARGET_URL = 'https://lmarena.ai/c/new?mode=direct';
-
-
-
+const TARGET_URL_SEARCH = 'https://lmarena.ai/zh/c/new?mode=direct&chat-modality=search';
 
 /**
  * 执行生图任务
@@ -39,9 +37,13 @@ async function generateImage(context, prompt, imgPaths, modelId, meta = {}) {
     const { page, config } = context;
     const textareaSelector = 'textarea';
 
+    // 根据 modelId (codeName) 反查模型配置，判断是否为搜索模式
+    const modelConfig = manifest.models.find(m => m.codeName === modelId) || {};
+    const targetUrl = modelConfig.search ? TARGET_URL_SEARCH : TARGET_URL;
+
     try {
-        logger.info('适配器', '开启新会话...', meta);
-        const gotoResult = await gotoWithCheck(page, TARGET_URL);
+        logger.info('适配器', `开启新会话... (搜索模式: ${!!modelConfig.search})`, meta);
+        const gotoResult = await gotoWithCheck(page, targetUrl);
         if (gotoResult.error) return gotoResult;
 
         // 1. 等待输入框加载
@@ -276,9 +278,10 @@ export const manifest = {
         { id: 'amazon.nova-pro-v1:0', codeName: 'a14546b5-d78d-4cf6-bb61-ab5b8510a9d6', imagePolicy: 'optional', type: 'text' },
         { id: 'glm-4.6v', codeName: '019b151a-7c3b-72a2-8811-0bf9317c2ef5', imagePolicy: 'optional', type: 'text' },
         { id: 'gpt-5.2-high', codeName: '019b1448-dafa-7f92-90c3-50e159c2263c', imagePolicy: 'optional', type: 'text' },
-        { id: 'gpt-5.2', codeName: '019b1448-d548-78f4-8b98-788d72cbd057', imagePolicy: 'foptional', type: 'text' },
+        { id: 'gpt-5.2', codeName: '019b1448-d548-78f4-8b98-788d72cbd057', imagePolicy: 'optional', type: 'text' },
         { id: 'glm-4.6v-flash', codeName: '019b1536-49c0-73b2-8d45-403b8571568d', imagePolicy: 'optional', type: 'text' },
-        { id: 'qwen3-omni-flash', codeName: '0199c9dc-e157-7458-bd49-5942363be215', imagePolicy: 'optional', type: 'text' }
+        { id: 'qwen3-omni-flash', codeName: '0199c9dc-e157-7458-bd49-5942363be215', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-3-pro-grounding', codeName: '019abdb7-6957-71c1-96a2-bfa79e8a094f', imagePolicy: 'optional', type: 'text', search: true }
     ],
 
     // 模型 ID 解析
