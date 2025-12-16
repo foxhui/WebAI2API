@@ -226,7 +226,10 @@ export async function initBrowserBase(config, options = {}) {
         i_know_what_im_doing: true,
         block_webrtc: true,
         exclude_addons: ['UBO'],
-        geoip: true
+        geoip: true,
+        config: {
+            forceScopeAccess: true
+        }
     };
 
     // 代理配置

@@ -59,7 +59,7 @@ export function isPageAuthLocked(page) {
  * @returns {Promise<void>}
  */
 export async function waitForInput(page, selectorOrLocator, options = {}) {
-    const { timeout = 60000, click = true } = options;
+    const { timeout = 20000, click = true } = options;
 
     const isLocator = typeof selectorOrLocator !== 'string';
     const displayName = isLocator ? 'Locator' : selectorOrLocator;
@@ -152,28 +152,47 @@ export async function submit(page, options = {}) {
  * @param {string} url - 目标 URL
  * @param {object} [options={}] - 选项
  * @param {number} [options.timeout=30000] - 超时时间（毫秒）
- * @returns {Promise<{success?: boolean, error?: string}>}
+ * @throws {Error} 导航失败时抛出错误
  */
 export async function gotoWithCheck(page, url, options = {}) {
-    const { timeout = 30000 } = options;
+    const { timeout = 20000 } = options;
     try {
         const response = await page.goto(url, {
             waitUntil: 'domcontentloaded',
             timeout
         });
         if (!response) {
-            return { error: '页面加载失败: 无响应' };
+            throw new Error('页面加载失败: 无响应');
         }
         const status = response.status();
         if (status >= 400) {
-            return { error: `网站无法访问 (HTTP ${status})` };
+            throw new Error(`网站无法访问 (HTTP ${status})`);
         }
-        return { success: true };
     } catch (e) {
         if (e.message.includes('Timeout')) {
-            return { error: '页面加载超时' };
+            throw new Error('页面加载超时');
         }
-        return { error: `页面加载失败: ${e.message}` };
+        // 如果是我们自己抛出的错误，直接 re-throw
+        if (e.message.startsWith('页面') || e.message.startsWith('网站')) {
+            throw e;
+        }
+        throw new Error(`页面加载失败: ${e.message}`);
+    }
+}
+
+/**
+ * 尝试导航到 URL（不抛异常版本，用于需要收集错误的场景）
+ * @param {import('playwright-core').Page} page - 页面对象
+ * @param {string} url - 目标 URL
+ * @param {object} [options={}] - 选项
+ * @returns {Promise<{success?: boolean, error?: string}>}
+ */
+export async function tryGotoWithCheck(page, url, options = {}) {
+    try {
+        await gotoWithCheck(page, url, options);
+        return { success: true };
+    } catch (e) {
+        return { error: e.message };
     }
 }
 

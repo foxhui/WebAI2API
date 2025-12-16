@@ -7,7 +7,7 @@ import fs from 'fs';
 import { logger } from '../../utils/logger.js';
 import { initBrowserBase, createCursor } from '../../browser/launcher.js';
 import { registry } from '../registry.js';
-import { gotoWithCheck } from '../utils/page.js';
+import { tryGotoWithCheck } from '../utils/page.js';
 
 /**
  * Worker 类 - 封装单个浏览器实例
@@ -159,7 +159,7 @@ export class Worker {
             for (const type of this.mergeTypes) {
                 const url = registry.getTargetUrl(type, this.globalConfig, this.workerConfig);
                 if (!url) continue;
-                const gotoResult = await gotoWithCheck(this.page, url, { timeout: 30000 });
+                const gotoResult = await tryGotoWithCheck(this.page, url, { timeout: 30000 });
                 if (!gotoResult.error) {
                     gotoSuccess = true;
                     logger.debug('工作池', `[${this.name}] 使用 ${type} 适配器初始化成功`);
@@ -171,7 +171,7 @@ export class Worker {
                 logger.warn('工作池', `[${this.name}] 所有适配器网站当前不可用，但 Worker 仍将初始化（请求时可能会失败）`);
             }
         } else {
-            const gotoResult = await gotoWithCheck(this.page, targetUrl, { timeout: 60000 });
+            const gotoResult = await tryGotoWithCheck(this.page, targetUrl, { timeout: 60000 });
             if (gotoResult.error) {
                 logger.warn('工作池', `[${this.name}] 目标网站当前不可用: ${gotoResult.error}，但 Worker 仍将初始化`);
             }
@@ -401,9 +401,11 @@ export class Worker {
     }
 
     /**
-     * 获取图片策略
+     * 获取图片策略（宽松策略：只要有一个适配器支持 optional 就返回 optional）
      */
     getImagePolicy(modelKey) {
+        const policies = new Set();
+
         if (this.type === 'merge') {
             if (modelKey.includes('/')) {
                 const [specifiedType, actualModel] = modelKey.split('/', 2);
@@ -411,14 +413,22 @@ export class Worker {
                     return registry.getImagePolicy(specifiedType, actualModel);
                 }
             }
+            // 收集所有支持该模型的适配器的 imagePolicy
             for (const type of this.mergeTypes) {
                 const realId = registry.resolveModelId(type, modelKey);
-                if (realId) return registry.getImagePolicy(type, modelKey);
+                if (realId) {
+                    policies.add(registry.getImagePolicy(type, modelKey));
+                }
             }
-            return 'optional';
         } else {
             return registry.getImagePolicy(this.type, modelKey);
         }
+
+        // 宽松策略：只要有一个 optional 就返回 optional
+        if (policies.has('optional')) return 'optional';
+        if (policies.has('required')) return 'required';
+        if (policies.has('forbidden')) return 'forbidden';
+        return 'optional';
     }
 
     /**

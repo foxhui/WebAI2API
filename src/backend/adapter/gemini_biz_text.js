@@ -157,9 +157,13 @@ async function generateImage(context, prompt, imgPaths, modelId, meta = {}) {
         await fillPrompt(page, INPUT_SELECTOR, prompt, meta);
         await sleep(500, 1000);
 
-        // 4. 设置拦截器
+        // 4. 设置请求拦截器（根据模型类型修改请求）
         logger.debug('适配器', '已启用请求拦截', meta);
         await page.unroute('**/*').catch(() => { });
+
+        // 判断是否为 grounding 模式
+        const isGrounding = modelId.endsWith('-grounding');
+        const actualModelId = isGrounding ? modelId.replace('-grounding', '') : modelId;
 
         await page.route(url => url.href.includes('global/widgetStreamAssist'), async (route) => {
             const request = route.request();
@@ -171,9 +175,20 @@ async function generateImage(context, prompt, imgPaths, modelId, meta = {}) {
                     logger.debug('适配器', '已拦截请求，正在修改...', meta);
                     if (!postData.streamAssistRequest) postData.streamAssistRequest = {};
                     if (!postData.streamAssistRequest.assistGenerationConfig) postData.streamAssistRequest.assistGenerationConfig = {};
-                    postData.streamAssistRequest.toolsSpec = { imageGenerationSpec: {} };
 
-                    logger.info('适配器', '已拦截请求，强制使用 Nano Banana Pro', meta);
+                    // 设置模型 ID
+                    postData.streamAssistRequest.assistGenerationConfig.modelId = actualModelId;
+
+                    // 根据模式设置 toolsSpec
+                    if (isGrounding) {
+                        postData.streamAssistRequest.toolsSpec = { webGroundingSpec: {} };
+                        logger.info('适配器', `已拦截请求，使用 Grounding 模式 (模型: ${actualModelId})`, meta);
+                    } else {
+                        // 文本模式不需要额外工具
+                        postData.streamAssistRequest.toolsSpec = {};
+                        logger.info('适配器', `已拦截请求，使用文本模式 (模型: ${actualModelId})`, meta);
+                    }
+
                     await route.continue({ postData: JSON.stringify(postData) });
                     return;
                 }
@@ -215,34 +230,62 @@ async function generateImage(context, prompt, imgPaths, modelId, meta = {}) {
             return { error: `请求生成时返回错误: ${httpError.error}` };
         }
 
-        // 7. 等待图片下载响应 
-        logger.info('适配器', '已获取结果，正在下载图片...', meta);
+        // 7. 解析文本响应
+        const content = await apiResponse.text();
+        logger.debug('适配器', `收到响应，长度: ${content.length}`, meta);
 
-        let imageResponse;
+        // 解析 JSON 数组响应
+        // 格式: [{uToken, streamAssistResponse: {answer: {replies: [...], state: "..."}}}, ...]
+        let fullText = '';
         try {
-            imageResponse = await waitApiResponse(page, {
-                urlMatch: 'download/v1alpha/projects',
-                method: 'GET',
-                timeout: 120000,
-                meta
-            });
-        } catch (e) {
-            const pageError = normalizePageError(e, meta);
-            if (pageError) {
-                if (e.name === 'TimeoutError') {
-                    return { error: '已获取结果, 但图片下载时超时 (120秒)' };
-                }
-                return pageError;
+            const parsed = JSON.parse(content);
+
+            if (!Array.isArray(parsed)) {
+                logger.error('适配器', '响应不是数组格式', meta);
+                return { error: '响应格式错误：不是数组' };
             }
-            throw e;
+
+            for (const item of parsed) {
+                const response = item?.streamAssistResponse;
+                const answer = response?.answer;
+                const state = answer?.state;
+
+                // 如果是 SUCCEEDED 状态，跳过（只是告知会话结束）
+                if (state === 'SUCCEEDED') {
+                    continue;
+                }
+
+                // 只处理 IN_PROGRESS 状态
+                if (state === 'IN_PROGRESS') {
+                    const replies = answer?.replies;
+                    if (replies && replies.length > 0) {
+                        const groundedContent = replies[0]?.groundedContent?.content;
+
+                        // 如果是思考过程，跳过
+                        if (groundedContent?.thought === true) {
+                            continue;
+                        }
+
+                        // 提取文本内容
+                        const text = groundedContent?.text;
+                        if (text) {
+                            fullText += text;
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            logger.error('适配器', '解析响应失败', { ...meta, error: e.message });
+            return { error: `解析响应失败: ${e.message}` };
         }
 
-
-        const base64 = await imageResponse.text();
-        logger.info('适配器', '已下载图片，任务完成', meta);
-        const dataUri = `data:image/png;base64,${base64}`;
-        return { image: dataUri };
-
+        if (fullText) {
+            logger.info('适配器', `获取文本成功，长度: ${fullText.length}`, meta);
+            return { text: fullText };
+        } else {
+            logger.warn('适配器', '未解析到有效文本内容', { ...meta, preview: content.substring(0, 200) });
+            return { error: '未解析到有效文本内容' };
+        }
 
     } catch (err) {
         // 顶层错误处理
@@ -263,8 +306,8 @@ async function generateImage(context, prompt, imgPaths, modelId, meta = {}) {
  * 适配器 manifest
  */
 export const manifest = {
-    id: 'gemini_biz',
-    displayName: 'Gemini Business',
+    id: 'gemini_biz_text',
+    displayName: 'Gemini Business (Text)',
 
     // 入口 URL (从配置读取，支持新旧路径)
     getTargetUrl(config, workerConfig) {
@@ -273,7 +316,12 @@ export const manifest = {
 
     // 模型列表
     models: [
-        { id: 'gemini-3-pro-image-preview', imagePolicy: 'optional' }
+        { id: 'gemini-3-pro', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-2.5-pro', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-2.5-flash', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-3-pro-grounding', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-2.5-pro-grounding', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-2.5-flash-grounding', imagePolicy: 'optional', type: 'text' }
     ],
 
     // 模型 ID 解析（直通）

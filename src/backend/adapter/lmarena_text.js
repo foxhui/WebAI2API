@@ -43,8 +43,7 @@ async function generateImage(context, prompt, imgPaths, modelId, meta = {}) {
 
     try {
         logger.info('适配器', `开启新会话... (搜索模式: ${!!modelConfig.search})`, meta);
-        const gotoResult = await gotoWithCheck(page, targetUrl);
-        if (gotoResult.error) return gotoResult;
+        await gotoWithCheck(page, targetUrl);
 
         // 1. 等待输入框加载
         await waitForInput(page, textareaSelector, { click: false });

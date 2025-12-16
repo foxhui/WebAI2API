@@ -32,6 +32,7 @@ export {
     fillPrompt,
     submit,
     gotoWithCheck,
+    tryGotoWithCheck,
     moveMouseAway,
     waitApiResponse,
 } from './page.js';

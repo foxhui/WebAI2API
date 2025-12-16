@@ -161,10 +161,26 @@ export class PoolManager {
         const failoverEnabled = failoverConfig.enabled !== false;
         const maxRetries = failoverConfig.maxRetries || 2;
 
-        const candidates = this.workers.filter(w => w.supports(modelId));
+        let candidates = this.workers.filter(w => w.supports(modelId));
 
         if (candidates.length === 0) {
             return { error: `没有 Worker 支持模型: ${modelId}` };
+        }
+
+        // 如果请求包含图片，优先选择 imagePolicy 为 optional 的 Worker
+        const hasImages = paths && paths.length > 0;
+        if (hasImages && candidates.length > 1) {
+            const optionalCandidates = candidates.filter(w => {
+                const policy = w.getImagePolicy(modelId);
+                return policy === 'optional' || policy === 'required';
+            });
+
+            if (optionalCandidates.length > 0) {
+                logger.debug('工作池', `请求包含图片，优先选择支持图片的 Worker (${optionalCandidates.length}/${candidates.length} 个)`);
+                candidates = optionalCandidates;
+            } else {
+                logger.warn('工作池', `请求包含图片，但没有 Worker 的 imagePolicy 为 optional`);
+            }
         }
 
         const sortedCandidates = this.strategySelector.sort(candidates);
@@ -238,14 +254,21 @@ export class PoolManager {
     }
 
     /**
-     * 获取图片策略
+     * 获取图片策略（宽松策略：只要有一个 Worker 支持 optional 就返回 optional）
      */
     getImagePolicy(modelKey) {
+        const policies = new Set();
+
         for (const worker of this.workers) {
             if (worker.supports(modelKey)) {
-                return worker.getImagePolicy(modelKey);
+                policies.add(worker.getImagePolicy(modelKey));
             }
         }
+
+        // 宽松策略：只要有一个 optional 就返回 optional
+        if (policies.has('optional')) return 'optional';
+        if (policies.has('required')) return 'required';
+        if (policies.has('forbidden')) return 'forbidden';
         return 'optional';
     }
 
