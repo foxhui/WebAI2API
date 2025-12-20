@@ -184,7 +184,7 @@ export const manifest = {
             label: '返回图片 URL',
             type: 'boolean',
             default: false,
-            note: '开启后直接返回图片 URL (但其他不支持的适配器仍然会返回 Base64)'
+            note: '开启后直接返回图片 URL (但其他不支持该选项的适配器仍然会返回 Base64)'
         }
     ],
 

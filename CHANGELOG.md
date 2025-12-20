@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **初始化失败逻辑**
   - 程序初始化失败后不会直接推出，以便利用 WebUI 修改错误的配置
 - **LMArena 图片适配器**
-  - 支持通过配置直接返回图片URL (但其他不支持的适配器仍然会返回 Base64)
+  - 支持通过配置直接返回图片URL (但其他不支持该选项的适配器仍然会返回 Base64)
 
 ## [3.2.0] - 2025-12-19
 
