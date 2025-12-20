@@ -213,7 +213,16 @@ async function parseTextRequest(messages, tempDir, imageLimit, modelId, isStream
     // 4. 构建当前输入
     const lastUserMsg = messages[lastUserIndex];
     const currentContent = await processContent(lastUserMsg.content);
-    currentPrompt = `=== 当前输入 ===\nUser: ${currentContent}`;
+
+    // 判断是否需要添加分割符号
+    const hasContext = systemPrompt || historyPrompt;
+    if (hasContext) {
+        // 有上下文，添加分割符
+        currentPrompt = `=== 当前输入 ===\nUser: ${currentContent}`;
+    } else {
+        // 没有上下文，直接使用内容
+        currentPrompt = currentContent;
+    }
 
     // 5. 合并最终 Prompt
     const finalPrompt = systemPrompt + historyPrompt + currentPrompt;
