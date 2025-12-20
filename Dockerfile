@@ -32,36 +32,18 @@ RUN npm install -g pnpm && pnpm install --frozen-lockfile
 COPY . .
 RUN npm run init
 
+# 4. 生成默认配置文件
+RUN cp config.example.yaml config.yaml
+
 EXPOSE 3000 5900
 
-# 4. 启动脚本
-# 逻辑说明：
-# A. 优先检查 /app/data/config.yaml (用户挂载的数据目录)
-#    - 存在则使用它覆盖 /app/config.yaml
-# B. 不存在 (首次运行)
-#    - 复制 config.example.yaml 为 config.yaml
-#    - 立即备份一份到 /app/data/config.yaml 供用户修改
+# 5. 启动脚本：同步 data 目录中的配置文件
 CMD ["/bin/sh", "-c", "\
-    if [ -f \"/app/data/config.yaml\" ]; then \
+    if [ -f /app/data/config.yaml ]; then \
         cp /app/data/config.yaml /app/config.yaml; \
     else \
-        echo '>>> First run detected. Generating default config...'; \
-        cp config.example.yaml config.yaml; \
-        echo '>>> Exporting default config to /app/data/config.yaml for you...'; \
-        cp config.yaml /app/data/config.yaml; \
+        mkdir -p /app/data; \
+        cp /app/config.yaml /app/data/config.yaml; \
     fi; \
-    \
-    ARGS='-xvfb -vnc'; \
-    if [ -n \"$LOGIN_MODE\" ]; then \
-        if [ \"$LOGIN_MODE\" = \"true\" ]; then \
-            echo '>>> ENABLED LOGIN MODE'; \
-            ARGS=\"$ARGS -login\"; \
-        else \
-            echo \">>> ENABLED LOGIN MODE for worker: $LOGIN_MODE\"; \
-            ARGS=\"$ARGS -login:$LOGIN_MODE\"; \
-        fi; \
-    fi; \
-    \
-    echo \">>> Starting application with args: $ARGS\"; \
-    npm start -- $ARGS \
+    npm start -- -xvfb -vnc \
 "]

@@ -1,19 +1,14 @@
 services:
-  lmarena-imagen-automator:
-    image: foxhui/lmarena-imagen-automator:latest
-    container_name: lmarena-imagen-automator
+  webai-2api:
+    image: foxhui/webai-2api:latest
+    container_name: webai-2api
     restart: unless-stopped
     ports:
-      - "3000:3000" # API
-      - "5900:5900" # VNC
+      - "3000:3000"  # API + WebUI
+      - "5900:5900"  # VNC
     volumes:
-      # 配置文件会自动生成到这里：./data/config.yaml
-      - ./data:/app/data
+      - ./data:/app/data  # 数据和配置持久化，config.yaml 会自动生成到此目录
     environment:
       - DISPLAY=:99
-      # false: 标准挂机模式
-      # true: 登录第一个 worker
-      # workerName: 只登录指定的 worker
-      - LOGIN_MODE=false
     shm_size: '2gb'
     init: true

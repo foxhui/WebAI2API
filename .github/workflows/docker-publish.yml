@@ -10,8 +10,7 @@ on:
         default: 'Manual build update'
 
 env:
-  # 请修改为你的 Docker Hub 镜像名称 (格式: 用户名/仓库名)
-  IMAGE_NAME: foxhui/lmarena-imagen-automator
+  IMAGE_NAME: foxhui/webai-2api
 
 jobs:
   build-and-push:

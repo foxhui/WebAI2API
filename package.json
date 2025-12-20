@@ -1,5 +1,5 @@
 {
-	"name": "webai-2-api",
+	"name": "webai-2api",
 	"version": "3.0.0",
 	"description": "基于 Playwright + Camoufox 的自动化图像生成工具",
 	"license": "MIT",
