@@ -56,6 +56,10 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
     const { page, config } = context;
     const textareaSelector = 'textarea';
 
+    // Worker 已验证，直接解析模型配置
+    const modelConfig = manifest.models.find(m => m.id === modelId);
+    const codeName = modelConfig?.codeName;
+
     try {
         logger.info('适配器', '开启新会话...', meta);
         await gotoWithCheck(page, TARGET_URL);
@@ -73,10 +77,10 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         await safeClick(page, textareaSelector, { bias: 'input' });
         await fillPrompt(page, textareaSelector, prompt, meta);
 
-        // 4. 配置请求拦截 (用于修改模型 ID)
+        // 4. 配置请求拦截 (用于修改模型 ID 为 codeName)
         await page.unroute('**/*').catch(() => { });
 
-        if (modelId) {
+        if (codeName) {
             logger.debug('适配器', `准备拦截请求`, meta);
             await page.route(url => url.href.includes('/nextjs-api/stream'), async (route) => {
                 const request = route.request();
@@ -85,8 +89,8 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 try {
                     const postData = request.postDataJSON();
                     if (postData && postData.modelAId) {
-                        logger.info('适配器', `已拦截请求并修改模型: ${postData.modelAId} -> ${modelId}`, meta);
-                        postData.modelAId = modelId;
+                        logger.info('适配器', `已拦截请求并修改模型: ${postData.modelAId} -> ${codeName}`, meta);
+                        postData.modelAId = codeName;
                         await route.continue({ postData: JSON.stringify(postData) });
                         return;
                     }
@@ -163,7 +167,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         return { error: `生成任务失败: ${err.message}` };
     } finally {
         // 清理拦截器
-        if (modelId) await page.unroute('**/*').catch(() => { });
+        if (codeName) await page.unroute('**/*').catch(() => { });
 
         // 任务结束，将鼠标移至安全区域
         await moveMouseAway(page);
@@ -229,12 +233,6 @@ export const manifest = {
         { id: 'reve-v1', codeName: '0199e980-ba42-737b-9436-927b6e7ca73e', imagePolicy: 'required' },
         { id: 'reve-fast-edit', codeName: '019a5675-0a56-7835-abdd-1cb9e7870afa', imagePolicy: 'required' }
     ],
-
-    // 模型 ID 解析
-    resolveModelId(modelKey) {
-        const model = this.models.find(m => m.id === modelKey);
-        return model ? model.codeName : null;
-    },
 
     // 无需导航处理器
     navigationHandlers: [],

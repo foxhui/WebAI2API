@@ -54,7 +54,7 @@ function parseError(code, customMessage) {
  * @param {string} options.tempDir - 临时目录路径
  * @param {number} options.imageLimit - 图片数量限制
  * @param {string} options.backendName - 后端名称
- * @param {Function} options.resolveModelId - 模型 ID 解析函数
+ * @param {Function} options.getSupportedModels - 获取支持的模型列表函数
  * @param {Function} options.getImagePolicy - 获取图片策略函数
  * @param {Function} options.getModelType - 获取模型类型函数
  * @param {string} options.requestId - 请求 ID
@@ -66,7 +66,7 @@ export async function parseRequest(data, options) {
         tempDir,
         imageLimit,
         backendName,
-        resolveModelId,
+        getSupportedModels,
         getImagePolicy,
         getModelType,
         requestId,
@@ -86,8 +86,11 @@ export async function parseRequest(data, options) {
     let isTextMode = false;
 
     if (data.model) {
-        const resolved = resolveModelId(data.model);
-        if (resolved) {
+        // 检查模型是否在支持列表中
+        const supportedModels = getSupportedModels();
+        const isSupported = supportedModels.data.some(m => m.id === data.model);
+
+        if (isSupported) {
             modelKey = data.model;
             logger.info('服务器', `触发模型: ${data.model}`, { id: requestId });
 

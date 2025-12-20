@@ -221,19 +221,6 @@ export class PoolManager {
     }
 
     /**
-     * 解析模型 ID
-     */
-    resolveModelId(modelKey) {
-        for (const worker of this.workers) {
-            const resolved = worker.resolveModelId(modelKey);
-            if (resolved) {
-                return `${worker.name}|${resolved.type}|${resolved.realId}`;
-            }
-        }
-        return null;
-    }
-
-    /**
      * 获取所有模型列表
      */
     getModels() {

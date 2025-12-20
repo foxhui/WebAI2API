@@ -206,11 +206,6 @@ export const manifest = {
         { id: 'cloudflare-turnstile', imagePolicy: 'forbidden', type: 'text' }
     ],
 
-    resolveModelId(modelKey) {
-        const model = this.models.find(m => m.id === modelKey);
-        return model ? model.id : null;
-    },
-
     navigationHandlers: [],
     generate
 };

@@ -18,7 +18,6 @@ export function createOpenAIRouter(context) {
     const {
         backendName,
         getModels,
-        resolveModelId,
         getImagePolicy,
         getModelType,
         tempDir,
@@ -107,7 +106,7 @@ export function createOpenAIRouter(context) {
                 tempDir,
                 imageLimit,
                 backendName,
-                resolveModelId,
+                getSupportedModels: getModels,
                 getImagePolicy,
                 getModelType,
                 requestId,

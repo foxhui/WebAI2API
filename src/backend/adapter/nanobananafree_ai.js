@@ -147,12 +147,6 @@ export const manifest = {
         { id: 'gemini-2.5-flash-image', imagePolicy: 'optional' }
     ],
 
-    // 模型 ID 解析（直通）
-    resolveModelId(modelKey) {
-        const model = this.models.find(m => m.id === modelKey);
-        return model ? model.id : null;
-    },
-
     // 无需导航处理器
     navigationHandlers: [],
 

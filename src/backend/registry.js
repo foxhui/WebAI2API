@@ -205,21 +205,34 @@ class AdapterRegistry {
     }
 
     /**
-     * 解析模型 ID
+     * 检查适配器是否支持指定模型
+     * @param {string} adapterId - 适配器 ID
+     * @param {string} modelId - 模型 ID
+     * @returns {boolean}
+     */
+    supportsModel(adapterId, modelId) {
+        const adapter = this.getAdapter(adapterId);
+        if (!adapter?.models) return false;
+        return adapter.models.some(m => m.id === modelId);
+    }
+
+    /**
+     * 解析模型 ID（保留用于向后兼容）
      * @param {string} adapterId - 适配器 ID
      * @param {string} modelKey - 模型 key
-     * @returns {string|null} 内部 ID，或 null
+     * @returns {string|null} codeName，或 null
+     * @deprecated 新架构下适配器自己解析，此方法主要用于向后兼容
      */
     resolveModelId(adapterId, modelKey) {
         const adapter = this.getAdapter(adapterId);
         if (!adapter) return null;
 
-        // 如果适配器提供了自定义解析函数
+        // 如果适配器还提供了 resolveModelId 函数，调用它
         if (typeof adapter.resolveModelId === 'function') {
             return adapter.resolveModelId(modelKey);
         }
 
-        // 默认行为：检查 modelKey 是否在 models 中
+        // 默认行为：查找模型并返回 codeName
         const model = adapter.models.find(m => m.id === modelKey);
         if (model) {
             return model.codeName || model.id;

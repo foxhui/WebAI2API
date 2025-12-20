@@ -46,7 +46,6 @@ const {
     initBrowser,
     generate,
     TEMP_DIR,
-    resolveModelId,
     getModels,
     getImagePolicy,
     getModelType
@@ -115,7 +114,6 @@ const handleRequest = createGlobalRouter({
     authToken: AUTH_TOKEN,
     backendName,
     getModels,
-    resolveModelId,
     getImagePolicy,
     getModelType,
     tempDir: TEMP_DIR,

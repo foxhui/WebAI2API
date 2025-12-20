@@ -184,58 +184,48 @@ export class Worker {
      */
     supports(modelId) {
         if (this.type === 'merge') {
+            // 检查任一适配器是否支持该模型
             for (const type of this.mergeTypes) {
-                const resolved = registry.resolveModelId(type, modelId);
-                if (resolved) return true;
+                if (registry.supportsModel(type, modelId)) return true;
             }
+            // 支持 type/model 格式
             if (modelId.includes('/')) {
-                const [specifiedType] = modelId.split('/', 2);
-                return this.mergeTypes.includes(specifiedType);
+                const [specifiedType, actualModel] = modelId.split('/', 2);
+                if (this.mergeTypes.includes(specifiedType)) {
+                    return registry.supportsModel(specifiedType, actualModel);
+                }
             }
             return false;
         } else {
+            // 支持 type/model 格式
             if (modelId.includes('/')) {
                 const [specifiedType, actualModel] = modelId.split('/', 2);
                 if (specifiedType === this.type) {
-                    const resolved = registry.resolveModelId(this.type, actualModel);
-                    return !!resolved;
+                    return registry.supportsModel(this.type, actualModel);
                 }
                 return false;
             }
-            return !!registry.resolveModelId(this.type, modelId);
+            return registry.supportsModel(this.type, modelId);
         }
     }
 
     /**
-     * 解析模型 ID
+     * 确定模型对应的适配器类型（内部辅助方法）
+     * @private
      */
-    resolveModelId(modelKey) {
+    _getAdapterType(modelKey) {
         if (this.type === 'merge') {
             if (modelKey.includes('/')) {
-                const [specifiedType, actualModel] = modelKey.split('/', 2);
-                if (this.mergeTypes.includes(specifiedType)) {
-                    const realId = registry.resolveModelId(specifiedType, actualModel);
-                    if (realId) return { type: specifiedType, realId };
-                }
-                return null;
+                const [specifiedType] = modelKey.split('/', 2);
+                return this.mergeTypes.includes(specifiedType) ? specifiedType : this.mergeTypes[0];
             }
+            // 找到第一个支持该模型的适配器
             for (const type of this.mergeTypes) {
-                const realId = registry.resolveModelId(type, modelKey);
-                if (realId) return { type, realId };
+                if (registry.supportsModel(type, modelKey)) return type;
             }
-            return null;
-        } else {
-            if (modelKey.includes('/')) {
-                const [specifiedType, actualModel] = modelKey.split('/', 2);
-                if (specifiedType === this.type) {
-                    const realId = registry.resolveModelId(this.type, actualModel);
-                    return realId ? { type: this.type, realId } : null;
-                }
-                return null;
-            }
-            const realId = registry.resolveModelId(this.type, modelKey);
-            return realId ? { type: this.type, realId } : null;
+            return this.mergeTypes[0];
         }
+        return this.type;
     }
 
     /**
@@ -249,13 +239,23 @@ export class Worker {
             return this._generateWithFailover(ctx, prompt, paths, modelId, meta, failoverConfig);
         }
 
-        const resolved = this.resolveModelId(modelId);
-        if (!resolved) {
+        // 验证是否支持该模型
+        if (!this.supports(modelId)) {
             return { error: `Worker [${this.name}] 不支持模型: ${modelId}` };
         }
 
-        const { type, realId } = resolved;
-        return this._executeAdapter(ctx, type, realId, prompt, paths, meta);
+        // 确定适配器类型
+        const type = this._getAdapterType(modelId);
+
+        // 处理 type/model 格式，提取实际 modelId
+        let actualModelId = modelId;
+        if (modelId.includes('/')) {
+            const parts = modelId.split('/', 2);
+            actualModelId = parts[1];
+        }
+
+        // 传递原始 modelId 给适配器，由适配器自己解析
+        return this._executeAdapter(ctx, type, actualModelId, prompt, paths, meta);
     }
 
     /**
@@ -274,8 +274,8 @@ export class Worker {
         let lastError = null;
 
         for (let i = 0; i < maxAttempts; i++) {
-            const { type, realId } = candidateTypes[i];
-            const result = await this._executeAdapter(ctx, type, realId, prompt, paths, meta);
+            const { type, modelId: actualModelId } = candidateTypes[i];
+            const result = await this._executeAdapter(ctx, type, actualModelId, prompt, paths, meta);
 
             if (!result.error) {
                 return result;
@@ -299,19 +299,16 @@ export class Worker {
 
         if (modelKey.includes('/')) {
             const [specifiedType, actualModel] = modelKey.split('/', 2);
-            if (this.mergeTypes.includes(specifiedType)) {
-                const realId = registry.resolveModelId(specifiedType, actualModel);
-                if (realId) {
-                    candidates.push({ type: specifiedType, realId });
-                }
+            if (this.mergeTypes.includes(specifiedType) && registry.supportsModel(specifiedType, actualModel)) {
+                candidates.push({ type: specifiedType, modelId: actualModel });
             }
             return candidates;
         }
 
+        // 收集所有支持该模型的适配器
         for (const type of this.mergeTypes) {
-            const realId = registry.resolveModelId(type, modelKey);
-            if (realId) {
-                candidates.push({ type, realId });
+            if (registry.supportsModel(type, modelKey)) {
+                candidates.push({ type, modelId: modelKey });
             }
         }
 
@@ -322,13 +319,13 @@ export class Worker {
      * 执行单个适配器
      * @private
      */
-    async _executeAdapter(ctx, type, realId, prompt, paths, meta) {
+    async _executeAdapter(ctx, type, modelId, prompt, paths, meta) {
         const adapter = registry.getAdapter(type);
         if (!adapter) {
             return { error: `适配器不存在: ${type}` };
         }
 
-        logger.info('工作池', `[${this.name}] 执行任务 -> ${type}/${realId}`, meta);
+        logger.info('工作池', `[${this.name}] 执行任务 -> ${type}/${modelId}`, meta);
 
         const subContext = {
             ...ctx,
@@ -340,7 +337,8 @@ export class Worker {
 
         this.busyCount++;
         try {
-            return await adapter.generate(subContext, prompt, paths, realId, meta);
+            // 传递原始 modelId，由适配器自己解析
+            return await adapter.generate(subContext, prompt, paths, modelId, meta);
         } finally {
             this.busyCount--;
         }
@@ -416,8 +414,7 @@ export class Worker {
             }
             // 收集所有支持该模型的适配器的 imagePolicy
             for (const type of this.mergeTypes) {
-                const realId = registry.resolveModelId(type, modelKey);
-                if (realId) {
+                if (registry.supportsModel(type, modelKey)) {
                     policies.add(registry.getImagePolicy(type, modelKey));
                 }
             }
@@ -444,8 +441,9 @@ export class Worker {
                 }
             }
             for (const type of this.mergeTypes) {
-                const realId = registry.resolveModelId(type, modelKey);
-                if (realId) return registry.getModelType(type, modelKey);
+                if (registry.supportsModel(type, modelKey)) {
+                    return registry.getModelType(type, modelKey);
+                }
             }
             return 'image';
         } else {

@@ -330,17 +330,13 @@ export const manifest = {
     models: [
         { id: 'gemini-3-pro', imagePolicy: 'optional', type: 'text' },
         { id: 'gemini-2.5-pro', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-3-flash-preview', imagePolicy: 'optional', type: 'text' },
         { id: 'gemini-2.5-flash', imagePolicy: 'optional', type: 'text' },
         { id: 'gemini-3-pro-grounding', imagePolicy: 'optional', type: 'text' },
         { id: 'gemini-2.5-pro-grounding', imagePolicy: 'optional', type: 'text' },
-        { id: 'gemini-2.5-flash-grounding', imagePolicy: 'optional', type: 'text' }
+        { id: 'gemini-2.5-flash-grounding', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-3-flash-preview-grounding', imagePolicy: 'optional', type: 'text' },
     ],
-
-    // 模型 ID 解析（直通）
-    resolveModelId(modelKey) {
-        const model = this.models.find(m => m.id === modelKey);
-        return model ? model.id : null;
-    },
 
     // 导航处理器
     navigationHandlers: [handleAccountChooser],

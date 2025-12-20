@@ -33,6 +33,7 @@
 | [**Nano Banana Free**](https://nanobananafree.ai/) | ❌ | ✅ | 
 | [**zAI**](https://zai.is/) | ❌ | ✅ | `gemini-exp-1206` 等 |
 | [**Google Gemini**](https://gemini.google.com/) | ❌ | ✅ | 
+| [**ZenMux**](https://zenmux.ai/) | ✅ | ❌ | 
 
 > [!NOTE]
 > **获取完整模型列表**: 通过 `GET /v1/models` 接口查看当前配置下所有可用模型及其详细信息。

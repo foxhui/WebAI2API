@@ -13,7 +13,6 @@ import {
     waitApiResponse,
     normalizePageError,
     normalizeHttpError,
-
     moveMouseAway,
     waitForInput,
     gotoWithCheck
@@ -37,12 +36,13 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
     const { page, config } = context;
     const textareaSelector = 'textarea';
 
-    // 根据 modelId (codeName) 反查模型配置，判断是否为搜索模式
-    const modelConfig = manifest.models.find(m => m.codeName === modelId) || {};
-    const targetUrl = modelConfig.search ? TARGET_URL_SEARCH : TARGET_URL;
+    // Worker 已验证，直接解析模型配置
+    const modelConfig = manifest.models.find(m => m.id === modelId);
+    const { codeName, search } = modelConfig || {};
+    const targetUrl = search ? TARGET_URL_SEARCH : TARGET_URL;
 
     try {
-        logger.info('适配器', `开启新会话... (搜索模式: ${!!modelConfig.search})`, meta);
+        logger.info('适配器', `开启新会话... (搜索模式: ${!!search})`, meta);
         await gotoWithCheck(page, targetUrl);
 
         // 1. 等待输入框加载
@@ -58,10 +58,10 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         await safeClick(page, textareaSelector, { bias: 'input' });
         await fillPrompt(page, textareaSelector, prompt, meta);
 
-        // 4. 配置请求拦截 (用于修改模型 ID)
+        // 4. 配置请求拦截 (用于修改模型 ID 为 codeName)
         await page.unroute('**/*').catch(() => { });
 
-        if (modelId) {
+        if (codeName) {
             logger.debug('适配器', `准备拦截请求`, meta);
             await page.route(url => url.href.includes('/nextjs-api/stream'), async (route) => {
                 const request = route.request();
@@ -70,8 +70,8 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 try {
                     const postData = request.postDataJSON();
                     if (postData && postData.modelAId) {
-                        logger.info('适配器', `已拦截请求并修改模型: ${postData.modelAId} -> ${modelId}`, meta);
-                        postData.modelAId = modelId;
+                        logger.info('适配器', `已拦截请求并修改模型: ${postData.modelAId} -> ${codeName}`, meta);
+                        postData.modelAId = codeName;
                         await route.continue({ postData: JSON.stringify(postData) });
                         return;
                     }
@@ -158,7 +158,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         return { error: `生成任务失败: ${err.message}` };
     } finally {
         // 清理拦截器
-        if (modelId) await page.unroute('**/*').catch(() => { });
+        if (codeName) await page.unroute('**/*').catch(() => { });
 
         // 任务结束，将鼠标移至安全区域
         await moveMouseAway(page);
@@ -280,6 +280,8 @@ export const manifest = {
         { id: 'gpt-5.2', codeName: '019b1448-d548-78f4-8b98-788d72cbd057', imagePolicy: 'optional', type: 'text' },
         { id: 'glm-4.6v-flash', codeName: '019b1536-49c0-73b2-8d45-403b8571568d', imagePolicy: 'optional', type: 'text' },
         { id: 'qwen3-omni-flash', codeName: '0199c9dc-e157-7458-bd49-5942363be215', imagePolicy: 'optional', type: 'text' },
+        { id: 'mimo-vl-7b-rl-2508', codeName: '1c0259b5-dff7-48ce-bca1-b6957675463b', imagePolicy: 'optional', type: 'text' },
+        { id: 'mimo-7b', codeName: 'ee3588cd-1fe1-484a-bcc9-f92065b8380c', imagePolicy: 'forbidden', type: 'text' },
         { id: 'gemini-3-pro-grounding', codeName: '019abdb7-6957-71c1-96a2-bfa79e8a094f', imagePolicy: 'forbidden', type: 'text', search: true },
         { id: 'gpt-5.1-search', codeName: '019abdb7-50a5-7c05-9308-4491d069578b', imagePolicy: 'forbidden', type: 'text', search: true },
         { id: 'grok-4-fast-search', codeName: '9217ac2d-91bc-4391-aa07-b8f9e2cf11f2', imagePolicy: 'forbidden', type: 'text', search: true },
@@ -294,12 +296,6 @@ export const manifest = {
         { id: 'grok-4-1-fast-search', codeName: '019af19c-0658-7566-9c60-112ae5bdb8db', imagePolicy: 'forbidden', type: 'text', search: true },
         { id: 'gpt-5.2-search', codeName: '019b1448-f74a-72de-b25d-8666618f8c5a', imagePolicy: 'forbidden', type: 'text', search: true }
     ],
-
-    // 模型 ID 解析
-    resolveModelId(modelKey) {
-        const model = this.models.find(m => m.id === modelKey);
-        return model ? model.codeName : null;
-    },
 
     // 无需导航处理器
     navigationHandlers: [],

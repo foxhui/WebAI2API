@@ -287,12 +287,6 @@ export const manifest = {
         { id: 'gemini-3-pro-image-preview', imagePolicy: 'optional' }
     ],
 
-    // 模型 ID 解析（直通）
-    resolveModelId(modelKey) {
-        const model = this.models.find(m => m.id === modelKey);
-        return model ? model.id : null;
-    },
-
     // 导航处理器
     navigationHandlers: [handleAccountChooser],
 
