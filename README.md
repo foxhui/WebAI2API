@@ -7,29 +7,28 @@
 
 ### 📋 当前支持列表
 
-| 网站名称 | 文本支持 | 图片支持 | 官方网址 |
-| :--- | :---: | :---: | :--- |
-| **LMArena** | ✅ | ✅ | [lmarena.ai](https://lmarena.ai/) |
-| **Gemini Enterprise Business** | ✅ | ✅ | [business.gemini.google](https://business.gemini.google/) |
-| **Nano Banana Free** | ❌ | ✅ | [nanobananafree.ai](https://nanobananafree.ai/) |
-| **zAI** | ❌ | ✅ | [zai.is](https://zai.is/) |
-| **Google Gemini** | ❌ | ✅ | [gemini.google.com](https://gemini.google.com/) |
+| 网站名称 | 文本支持 | 图片支持 |
+| :--- | :---: | :---: |
+| [**LMArena**](https://lmarena.ai/) | ✅ | ✅ |
+| [**Gemini Enterprise Business**](https://business.gemini.google/) | ✅ | ✅ |
+| [**Nano Banana Free**](https://nanobananafree.ai/) | ❌ | ✅ |
+| [**zAI**](https://zai.is/) | ❌ | ✅ |
+| [**Google Gemini**](https://gemini.google.com/) | ❌ | ✅ |
+
+> 未来可能会支持更多网站...
 
 ### ✨ 主要特性
 
 - 🤖 **拟人交互**：模拟人类打字与鼠标轨迹，通过特征伪装规避自动化检测。
 - 🔄 **接口兼容**：提供标准 OpenAI 格式接口，支持流式响应与心跳保活。
 - 🚀 **并发隔离**：支持多窗口并发执行，可配置独立代理，实现多账号浏览器实例级数据隔离。
-- 🖼️ **多个后端**：支持 LMArena、Gemini 等多平台，单次请求可处理多张参考图片。
 - 🛡️ **稳定防护**：内置任务队列、负载均衡、故障转移、错误重试等基础功能。
 
 ---
 
 ## 🚀 快速部署
 
-本项目支持 **源码直接运行（推荐）** 和 **Docker 容器化部署** 两种方式。
-
-> 因开发者自用时是直接源码运行，Docker未经测试可能更新滞后且可能有问题，如有相关建议可提出，帮助项目完善 Docker 的运行方式
+本项目支持 **源码直接运行** 和 **Docker 容器化部署** 两种方式。
 
 ### 📋 环境要求
 - **Node.js**: v20.0.0+ (ABI 115+)
@@ -50,28 +49,28 @@
 
 2. **启动服务**
    ```bash
-   npm start -- -login              # 首次运行（进入首个Worker的登录模式）
-   npm start -- -login=workerName   # 首次运行（进入指定Worker的登录模式）
-   npm start                        # 标准运行
+   # 标准运行
+   npm start
+
+   # Linux 命令行启动
+   npm start -- -xvfb -vnc
    ```
 
 ### 🐳 方式二：Docker 部署
 
-> ⚠️ **特别说明**：首次运行需设置 `LOGIN_MODE=true`（true可以改为workerName），并通过 VNC 客户端连接 `localhost:5900` 完成网页登录验证。
+> ⚠️ **特别说明**：登录相关操作可以在 WebUI 的虚拟显示器板块进行，也可通过 RealVNC 等工具连接（需添加映射 VNC 端口，默认非被占用的情况下为 5900）
 
 **Docker CLI**
 ```bash
-docker run -d --name lmarena-automator \
-  -p 3000:3000 -p 5900:5900 \
+docker run -d --name webai-2api \
+  -p 3000:3000 \
   -v "$(pwd)/data:/app/data" \
-  -e LOGIN_MODE=true \
   --shm-size=2gb \
-  foxhui/lmarena-imagen-automator:latest
+  foxhui/webai-2api:latest
 ```
 
 **Docker Compose**
 ```bash
-# 确保 docker-compose.yml 中 LOGIN_MODE=true
 docker-compose up -d
 ```
 
@@ -81,53 +80,22 @@ docker-compose up -d
 
 ### ⚠️ 首次使用必读
 
-1. **启动登录模式**：
+1. **完成初始化**：
+   - Linux 用户使用 `npm start -- -xvfb -vnc` 启动程序，然后使用 WebUI 或者第三方工具连接 VNC
+   - 手动登录账号
+   - 在输入框发送任意消息，触发并完成 CloudFlare/reCAPTCHA 验证及服务条款同意
+2. **运行建议**：
+   - **WebUI 和 VNC 传输过程均未加密，若在公网环境运行请走 SSH 隧道或者使用 Caddy/Nginx 为 WebUI 添加 HTTPS 连接**
    ```bash
-   npm start -- -login              # 启动第一个 Worker 进行登录
-   npm start -- -login=workerName   # 启动指定 Worker 进行登录
+   # SSH隧道方法：在本地终端运行，将服务器 5900 端口映射到本地
+   ssh -L 5900:127.0.0.1:5900 root@服务器IP
    ```
-   - Linux 用户使用 `npm start -- -xvfb -vnc` 进入登录模式且创建虚拟显示器到 VNC。
-2. **完成初始化**：
-   - 手动登录账号。
-   - 在输入框发送任意消息，触发并完成 CloudFlare/reCAPTCHA 验证及服务条款同意。
-3. **运行建议**：初始化完成后可切换回标准模式，但为降低风控，**强烈建议长期保持非无头模式运行**。
-
-### 📑 配置文件结构
-
-项目使用 `config.yaml` 进行配置，核心结构如下：
-
-```yaml
-backend:
-  pool:
-    strategy: least_busy    # 调度策略
-    instances:              # 浏览器实例列表
-      - name: "browser_01"  # 实例 ID
-        userDataMark: "01"  # 数据目录标识
-        proxy:              # 实例级代理
-          enable: true
-          type: socks5
-          host: 127.0.0.1
-          port: 1080
-        workers:            # 该实例下的 Worker
-          - name: "lmarena_01"
-            type: lmarena
-          - name: "zai_01"
-            type: zai_is
-          - name: "merge"
-            type: merge     # 单标签聚合模式
-            mergeTypes: [zai_is, lmarena]
-            mergeMonitor: zai_is  # 空闲时挂机监控的后端 (可选，留空则不启用)
-```
-
-**说明**：
-- 每个 `instance` 代表一个独立的浏览器进程
-- 同一 `instance` 下的 `workers` 共享浏览器数据和登录状态
-- 使用 Google OAuth 等统一登录时，只需登录一次即可用于所有 Worker
-
-详细配置请参考 `config.example.yaml`。
-
+   - 初始化完成后可切换回标准模式，但为降低风控，**强烈建议长期保持非无头模式运行**
 
 ### 接口使用说明
+
+> [!TIP]
+> **详细文档**：请访问 [WebAI2API 文档中心](https://foxhui.github.io/WebAI2API/) 获取更全面的配置指南与接口说明。
 
 #### 1. OpenAI 兼容接口
 
@@ -141,78 +109,6 @@ backend:
 ```
 POST http://127.0.0.1:3000/v1/chat/completions
 ```
-
-<details>
-<summary>📄 查看API请求示例</summary>
-
-**请求示例（非流式）**
-```bash
-curl -X POST http://127.0.0.1:3000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-secret-key" \
-  -d '{
-    "model": "gemini-3-pro-image-preview",
-    "messages": [
-      {
-        "role": "user",
-        "content": [
-          {
-            "type": "text",
-            "text": "generate a cat"
-          }
-      ]
-      }
-    ]
-  }'
-```
-
-**响应格式（非流式）**
-```json
-{
-  "id": "chatcmpl-1732374740123",
-  "object": "chat.completion",
-  "created": 1732374740,
-  "model": "gemini-3-pro-image-preview",
-  "choices": [{
-    "index": 0,
-    "message": {
-      "role": "assistant",
-      "content": "![generated](data:image/jpeg;base64,/9j/4AAQ...)"
-    },
-    "finish_reason": "stop"
-  }]
-}
-```
-
-**请求示例（流式 - 推荐）**
-```bash
-curl -X POST http://127.0.0.1:3000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-secret-key" \
-  -d '{
-    "model": "gemini-3-pro-image-preview",
-    "stream": true,
-    "messages": [
-      {
-        "role": "user",
-        "content": "generate a cat"
-      }
-    ]
-  }'
-```
-
-**响应格式（流式）**
-```
-data: {"id":"chatcmpl-1732374740123","object":"chat.completion.chunk","created":1732374740,"model":"gemini-3-pro-image-preview","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
-
-: keep-alive
-: keep-alive
-
-data: {"id":"chatcmpl-1732374740123","object":"chat.completion.chunk","created":1732374740,"model":"gemini-3-pro-image-preview","choices":[{"index":0,"delta":{"content":"![generated](data:image/jpeg;base64,/9j/4AAQ...)"},"finish_reason":"stop"}]}
-
-data: [DONE]
-```
-</details>
 
 #### 参数说明
 
@@ -234,44 +130,6 @@ data: [DONE]
 GET http://127.0.0.1:3000/v1/models
 ```
 
-<details>
-<summary>📄 查看API请求示例</summary>
-
-**请求示例**
-```bash
-curl -X GET http://127.0.0.1:3000/v1/models \
-  -H "Authorization: Bearer your-secret-key"
-```
-
-**响应格式**
-```json
-{
-  "object": "list",
-  "data": [
-    {
-      "id": "seedream-4-high-res-fal",
-      "object": "model",
-      "created": 1732456789,
-      "owned_by": "internal_server"
-    },
-    {
-      "id": "lmarena/seedream-4-high-res-fal",
-      "object": "model",
-      "created": 1732456789,
-      "owned_by": "lmarena"
-    },
-    {
-      "id": "gemini-3-pro-image-preview",
-      "object": "model",
-      "created": 1732456789,
-      "owned_by": "internal_server"
-    }
-  ]
-}
-```
-
-</details>
-
 #### 3. 获取 Cookies
 
 **功能说明**：可利用本项目的自动续登功能获取最新 Cookie 给其他工具使用。
@@ -281,47 +139,6 @@ curl -X GET http://127.0.0.1:3000/v1/models \
 ```
 GET http://127.0.0.1:3000/v1/cookies (?name=browser_default&domain=lmarena.ai)
 ```
-
-<details>
-<summary>📄 查看API请求示例</summary>
-
-**请求示例**
-```bash
-curl -X GET http://127.0.0.1:3000/v1/cookies \
-  -H "Authorization: Bearer your-secret-key"
-```
-
-**响应格式**
-```json
-{
-  "instance": "browser_default",
-  "cookies": [
-    {
-      "name": "_GRECAPTCHA",
-      "value": "09ADxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "domain": "www.google.com",
-      "path": "/recaptcha",
-      "expires": 1780000000,
-      "httpOnly": true,
-      "secure": true,
-      "sameSite": "None"
-    },
-    {
-      "name": "OTZ",
-      "value": "8888888_24_24__24_",
-      "domain": "accounts.google.com",
-      "path": "/",
-      "expires": 1760000000,
-      "httpOnly": false,
-      "secure": true,
-      "sameSite": "None"
-    }
-    .......... more
-  ]
-}
-```
-
-</details>
 
 #### 4. 多模态请求 (图生图/文生图)
 
@@ -334,129 +151,19 @@ curl -X GET http://127.0.0.1:3000/v1/cookies \
 | **数据格式** | 必须使用 Base64 Data URL 格式 (如 `data:image/jpeg;base64,...`) |
 | **自动转换** | 为保证兼容性与传输速度，服务器会自动将所有图片转换为 JPG 格式 |
 
-<details>
-<summary>📄 查看API请求示例</summary>
-
-**请求示例**
-```json
-{
-  "model": "gemini-3-pro-image-preview",
-  "messages": [{
-    "role": "user",
-    "content": [
-      {
-        "type": "text",
-        "text": "make it more colorful"
-      },
-      {
-        "type": "image_url",
-        "image_url": {
-          "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAA..."
-        }
-      }
-    ]
-  }]
-}
-```
-
-</details>
-
----
-
-## 🔧 常见问题
-
-<details>
-<summary>❌ 请求被拒绝 (429 Too Many Requests)</summary>
-
-**问题**: 并发请求过多
-
-**解决方案**:
-- 该问题仅存在未开启流式保活时出现
-- 队列限制：1 个并发 + 2 个排队 (总计 3 个)
-- 修改 `config.yaml` 中的`queue.maxQueueSize` (不建议)
-- 等待当前任务完成后再提交新任务
-
-</details>
-
-<details>
-<summary>❌ reCAPTCHA 验证失败</summary>
-
-**问题**: 返回 `recaptcha validation failed`
-
-**解决方案**:
-- 这是 LMArena 的人机验证机制
-- 建议：
-  - 降低请求频率
-  - 首次使用时手动完成一次验证 (关闭 headless 模式)
-  - 使用稳定和纯净的 IP 地址 (可使用 [ping0.cc](https://ping0.cc) 查询IP地址纯净度)
-
-</details>
-
-<details>
-<summary>❌ 图像生成超时</summary>
-
-**问题**: 任务超过 120 秒未完成
-
-**解决方案**:
-- 启用流式保活确保客户端不会主动断开连接
-- 检查网络连接是否稳定
-- 某些复杂提示词可能需要更长时间
-
-</details>
-
-<details>
-<summary>🐧 【Linux 环境下非无头模式运行】</summary>
-
-**问题**: 需要在 Linux 服务器上显示浏览器界面（如手动过验证码）
-
-**解决方案**:
-
-**方法一：X11 转发**
-- 推荐使用 WindTerm 等终端工具，开启 X-Server 功能
-- 在 SSH 会话设置中启用 X11 转发 (Forward X11)
-
-**方法二：Xvfb + X11VNC (推荐)**
-使用虚拟显示器运行程序，并通过 VNC 远程查看。
-
-1. **使用内置命令启动 (简便)**
-   ```bash
-   npm start -- -xvfb -vnc
-   ```
-
-2. **手动配置**
-   如果内置命令无法满足需求，可手动分步执行：
-   
-   a. **启动虚拟显示器并运行程序** (屏幕号 99 可按需修改):
-      ```bash
-      xvfb-run --server-num=99 --server-args="-ac -screen 0 1920x1080x24" npm start
-      ```
-
-   b. **将虚拟显示器映射至 VNC**:
-      ```bash
-      x11vnc -display :99 -localhost -nopw -once -noxdamage -ncache 10 -forever
-      ```
-
-3. **建立 SSH 隧道连接 VNC** (安全推荐):
-   ```bash
-   # 在本地终端运行，将服务器 5900 端口映射到本地
-   ssh -L 5900:127.0.0.1:5900 root@服务器IP
-   ```
-   随后使用 VNC 客户端连接 `127.0.0.1:5900` 即可。
-
-</details>
-
 ---
 
 ## 📊 设备配置参考
 
-| 资源 | 最低配置 | 推荐配置 | 
-| :--- | :--- | :--- | 
-| **CPU** | 1 核 | 2 核及以上 | 
-| **内存** | 1 GB | 2 GB 及以上 | 
+| 资源 | 最低配置 | 推荐配置（单实例） | 推荐配置（多实例） |
+| :--- | :--- | :--- | :--- |
+| **CPU** | 1 核 | 2 核及以上 | 2 核及以上 |
+| **内存** | 1 GB | 2 GB 及以上 | 4 GB 及以上 |
+| **磁盘** | 2 GB 可用空间 | 5 GB 及以上 | 7 GB 及以上 |
 
 **实测环境表现** (均为单浏览器实例)：
-- **Oracle 免费机** (1C1G, Debian 12)：资源紧张，比较卡顿，仅供尝鲜或轻度使用。
-- **阿里云轻量云** (2C2G, Debian 11)：运行流畅稳定，为本项目开发测试基准环境。
+- **Oracle 免费机** (1C1G, Debian 12)：资源紧张，比较卡顿，仅供尝鲜或轻度使用
+- **阿里云轻量云** (2C2G, Debian 11)：运行流畅，项目开发测试所用机型
 
 ## 📄 许可证和免责声明
 
