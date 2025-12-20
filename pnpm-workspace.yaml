@@ -1,5 +1,0 @@
-ignoredBuiltDependencies:
-  - better-sqlite3
-
-packages:
-  - '!webui/**'

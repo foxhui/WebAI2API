@@ -1,34 +1,16 @@
 {
-	"name": "webai-2api",
-	"version": "3.0.0",
-	"description": "基于 Playwright + Camoufox 的自动化图像生成工具",
-	"license": "MIT",
-	"author": "foxhui",
-	"type": "module",
-	"scripts": {
-		"start": "node supervisor.js",
-		"test": "node scripts/test.js",
-		"genkey": "node scripts/genkey.js",
-		"init": "node scripts/init.js",
-		"postinstall": "node scripts/postinstall.js"
-	},
-	"imports": {
-		"#config": "./src/config/index.js",
-		"#utils/*": "./src/utils/*.js",
-		"#backend/*": "./src/backend/*.js",
-		"#server/*": "./src/server/*.js"
-	},
-	"dependencies": {
-		"@inquirer/prompts": "^8.0.1",
-		"better-sqlite3": "^12.5.0",
-		"camoufox-js": "^0.8.3",
-		"compressing": "^2.0.0",
-		"fingerprint-generator": "^2.1.78",
-		"ghost-cursor-playwright-port": "^1.4.3",
-		"got-scraping": "^4.1.2",
-		"playwright-core": "^1.57.0",
-		"proxy-chain": "^2.6.0",
-		"sharp": "^0.34.5",
-		"yaml": "^2.8.2"
-	}
+  "name": "webai-2-api-docs",
+  "version": "1.0.0",
+  "description": "WebAI2API 项目的说明文档",
+  "license": "MIT",
+  "author": "foxhui",
+  "type": "module",
+  "devDependencies": {
+    "vitepress": "2.0.0-alpha.15"
+  },
+  "scripts": {
+    "docs:dev": "vitepress dev --host 127.0.0.1",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview"
+  }
 }
