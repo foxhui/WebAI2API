@@ -215,6 +215,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 urlMatch: 'global/widgetStreamAssist',
                 method: 'POST',
                 timeout: 120000,
+                errorText: ['modelArmorViolation'],
                 meta
             });
         } catch (e) {

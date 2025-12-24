@@ -215,23 +215,76 @@ export async function moveMouseAway(page) {
 }
 
 /**
- * 等待 API 响应 (带页面关闭监听)
+ * 等待元素出现并滚动到可视范围
+ * @param {import('playwright-core').Page} page - Playwright 页面对象
+ * @param {string|import('playwright-core').Locator} selectorOrLocator - CSS 选择器或 Locator 对象
+ * @param {object} [options={}] - 选项
+ * @param {number} [options.timeout=30000] - 超时时间（毫秒）
+ * @returns {Promise<import('playwright-core').ElementHandle|null>} 元素句柄，失败返回 null
+ */
+export async function scrollToElement(page, selectorOrLocator, options = {}) {
+    const { timeout = 30000 } = options;
+    try {
+        const isLocator = typeof selectorOrLocator !== 'string';
+        let element;
+
+        if (isLocator) {
+            // Locator 对象 (getByRole, getByText 等)
+            await selectorOrLocator.first().waitFor({ timeout, state: 'attached' });
+            element = await selectorOrLocator.first().elementHandle();
+        } else {
+            // CSS 选择器字符串
+            element = await page.waitForSelector(selectorOrLocator, { timeout, state: 'attached' });
+        }
+
+        if (element) {
+            await element.scrollIntoViewIfNeeded();
+            return element;
+        }
+    } catch {
+        // 元素未找到或超时
+    }
+    return null;
+}
+
+
+/**
+ * 等待 API 响应 (带页面关闭监听和错误关键词检测)
  * @param {import('playwright-core').Page} page - Playwright 页面对象
  * @param {object} options - 等待选项
  * @param {string} options.urlMatch - URL 匹配字符串
  * @param {string|string[]} [options.urlContains] - URL 必须额外包含的字符串（可选，可以是数组）
  * @param {string} [options.method='POST'] - HTTP 方法
  * @param {number} [options.timeout=120000] - 超时时间（毫秒）
+ * @param {string|string[]} [options.errorText] - 错误关键词，页面 UI 或 API 响应体中出现时立即停止并返回错误
  * @returns {Promise<import('playwright-core').Response>} 响应对象
  */
 export async function waitApiResponse(page, options = {}) {
-    const { urlMatch, urlContains, method = 'POST', timeout = 120000 } = options;
+    const { urlMatch, urlContains, method = 'POST', timeout = 120000, errorText } = options;
 
     if (!isPageValid(page)) {
         throw new Error('PAGE_INVALID');
     }
 
     const pageWatcher = createPageCloseWatcher(page);
+    const patterns = errorText ? (Array.isArray(errorText) ? errorText : [errorText]) : [];
+
+    // 页面 UI 错误关键词检测
+    let uiErrorPromise = null;
+    if (patterns.length > 0) {
+        let combinedLocator = null;
+        for (const pattern of patterns) {
+            const loc = page.getByText(pattern);
+            combinedLocator = combinedLocator ? combinedLocator.or(loc) : loc;
+        }
+        if (combinedLocator) {
+            uiErrorPromise = combinedLocator.first().waitFor({ timeout, state: 'attached' })
+                .then(async () => {
+                    const matchedText = await combinedLocator.first().textContent().catch(() => '未知错误');
+                    throw new Error(`PAGE_ERROR_DETECTED: ${matchedText}`);
+                });
+        }
+    }
 
     try {
         const responsePromise = page.waitForResponse(
@@ -254,7 +307,36 @@ export async function waitApiResponse(page, options = {}) {
             { timeout }
         );
 
-        return await Promise.race([responsePromise, pageWatcher.promise]);
+        const promises = [responsePromise, pageWatcher.promise];
+        if (uiErrorPromise) promises.push(uiErrorPromise);
+
+        const response = await Promise.race(promises);
+
+        // API 响应体错误关键词检测 (在返回前同步检查)
+        if (patterns.length > 0) {
+            try {
+                // 使用 body() 获取 Buffer，避免 text() 的某些内部状态问题
+                const bodyBuffer = await response.body();
+                const body = bodyBuffer.toString('utf-8');
+                for (const pattern of patterns) {
+                    const keyword = typeof pattern === 'string' ? pattern : pattern.source;
+                    if (body.includes(keyword)) {
+                        throw new Error(`API_ERROR_DETECTED: ${keyword}`);
+                    }
+                }
+                // 返回代理对象，缓存 body 以支持调用方重复读取
+                const cachedResponse = Object.create(response);
+                cachedResponse.text = async () => body;
+                cachedResponse.json = async () => JSON.parse(body);
+                cachedResponse.body = async () => bodyBuffer;
+                return cachedResponse;
+            } catch (e) {
+                if (e.message.startsWith('API_ERROR_DETECTED')) throw e;
+                // 如果读取响应体失败，直接返回原始 response
+            }
+        }
+
+        return response;
     } finally {
         pageWatcher.cleanup();
     }

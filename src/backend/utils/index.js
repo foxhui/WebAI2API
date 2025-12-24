@@ -35,6 +35,7 @@ export {
     tryGotoWithCheck,
     moveMouseAway,
     waitApiResponse,
+    scrollToElement,
 } from './page.js';
 
 // 错误归一化

@@ -19,7 +19,8 @@ import {
     unlockPageAuth,
     isPageAuthLocked,
     waitForInput,
-    gotoWithCheck
+    gotoWithCheck,
+    scrollToElement
 } from '../utils/index.js';
 import { logger } from '../../utils/logger.js';
 
@@ -190,7 +191,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             await route.continue();
         });
 
-        // 5. 提交 (submit - 使用公共函数)
+        // 5. 提交
         logger.debug('适配器', '点击发送...', meta);
         await submit(page, {
             btnSelector: 'md-icon-button.send-button.submit, button[aria-label="提交"], button[aria-label="Send"], .send-button',
@@ -207,6 +208,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 urlMatch: 'global/widgetStreamAssist',
                 method: 'POST',
                 timeout: 120000,
+                errorText: ['modelArmorViolation'],
                 meta
             });
         } catch (e) {
@@ -227,12 +229,19 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         let imageResponse;
         try {
-            imageResponse = await waitApiResponse(page, {
+            // 先启动监听器，再滚动触发懒加载，避免错过请求
+            const imageResponsePromise = waitApiResponse(page, {
                 urlMatch: 'download/v1alpha/projects',
                 method: 'GET',
                 timeout: 120000,
+                errorText: ['is unable to reply as the prompt'],
                 meta
             });
+
+            // 等待图片元素出现并滚动到可视范围，触发懒加载
+            await scrollToElement(page, 'ucs-markdown-image', { timeout: 10000 });
+
+            imageResponse = await imageResponsePromise;
         } catch (e) {
             const pageError = normalizePageError(e, meta);
             if (pageError) {
