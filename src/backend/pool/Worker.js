@@ -58,21 +58,27 @@ export class Worker {
             targetUrl = registry.getTargetUrl(this.type, this.globalConfig, this.workerConfig) || 'about:blank';
         }
 
-        // 收集导航处理器
-        const handlers = [];
-        const typesToHandle = this.type === 'merge' ? this.mergeTypes : [this.type];
-        for (const type of typesToHandle) {
-            const typeHandlers = registry.getNavigationHandlers(type);
-            handlers.push(...typeHandlers);
-        }
+        // 登录模式下不注册导航处理器，避免自动登录干预用户操作
+        const isLoginMode = process.argv.some(arg => arg.startsWith('-login'));
+        let navigationHandler = null;
 
-        const navigationHandler = handlers.length > 0
-            ? async (page) => {
-                for (const handler of handlers) {
-                    try { await handler(page); } catch (e) { /* ignore */ }
-                }
+        if (!isLoginMode) {
+            // 收集导航处理器
+            const handlers = [];
+            const typesToHandle = this.type === 'merge' ? this.mergeTypes : [this.type];
+            for (const type of typesToHandle) {
+                const typeHandlers = registry.getNavigationHandlers(type);
+                handlers.push(...typeHandlers);
             }
-            : null;
+
+            navigationHandler = handlers.length > 0
+                ? async (page) => {
+                    for (const handler of handlers) {
+                        try { await handler(page); } catch (e) { /* ignore */ }
+                    }
+                }
+                : null;
+        }
 
         logger.info('工作池', `[${this.name}] 正在初始化浏览器...`);
         if (this.proxyConfig) {

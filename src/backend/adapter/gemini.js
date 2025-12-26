@@ -14,7 +14,8 @@ import {
     moveMouseAway,
     waitForInput,
     gotoWithCheck,
-    waitApiResponse
+    waitApiResponse,
+    scrollToElement
 } from '../utils/index.js';
 import { logger } from '../../utils/logger.js';
 
@@ -163,13 +164,19 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
             let imageResponse;
             try {
-                imageResponse = await waitApiResponse(page, {
+                // 先启动监听器，再滚动触发懒加载，避免错过请求
+                const imageResponsePromise = waitApiResponse(page, {
                     urlMatch: 'googleusercontent.com/rd-gg-dl',
                     urlContains: '=s1024-rj',
                     method: 'GET',
                     timeout: 60000,
                     meta
                 });
+
+                // 等待图片元素出现并滚动到可视范围，触发懒加载
+                await scrollToElement(page, 'model-response', { timeout: 20000 });
+
+                imageResponse = await imageResponsePromise;
             } catch (e) {
                 const pageError = normalizePageError(e, meta);
                 if (pageError) return pageError;

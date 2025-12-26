@@ -239,7 +239,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             });
 
             // 等待图片元素出现并滚动到可视范围，触发懒加载
-            await scrollToElement(page, 'ucs-markdown-image', { timeout: 10000 });
+            await scrollToElement(page, 'ucs-markdown-image', { timeout: 20000 });
 
             imageResponse = await imageResponsePromise;
         } catch (e) {
