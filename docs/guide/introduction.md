@@ -11,10 +11,13 @@
 | [**LMArena**](https://lmarena.ai/) | ✅ | ✅ | 🚫 |
 | [**Gemini Enterprise Business**](https://business.gemini.google/) | ✅ | ✅ | ✅ |
 | [**Nano Banana Free**](https://nanobananafree.ai/) | 🚫 | ✅ | 🚫 |
-| [**zAI**](https://zai.is/) | ❌ | ✅ | 🚫 |
+| [**zAI**](https://zai.is/) | ✅ | ✅ | 🚫 |
 | [**Google Gemini**](https://gemini.google.com/) | ✅ | ✅ | ✅ | 
 | [**ZenMux**](https://zenmux.ai/) | ✅ | ❌ | 🚫 | 
-| [**ChatGPT**](https://chatgpt.com/) | ❌ | ✅ | 🚫 | 
+| [**ChatGPT**](https://chatgpt.com/) | ✅ | ✅ | 🚫 | 
+| [**DeepSeek**](https://chat.deepseek.com/) | ✅ | 🚫 | 🚫 | 
+| [**Sora**](https://sora.chatgpt.com/) | 🚫 | 🚫 | ✅ | 
+| [**Google Flow**](https://labs.google/fx/zh/tools/flow) | 🚫 | ✅ | ❌ | 
 | 待续... | - | - | - | 
 
 ::: tip 实测环境表现
