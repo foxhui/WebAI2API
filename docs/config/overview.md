@@ -84,6 +84,36 @@ browser:
 | `headless` | boolean | `false` | 是否启用无头模式 |
 | `proxy` | object | - | 全局代理配置 |
 
+### 适配器配置 (backend.adapter)
+
+每个适配器都可以配置专属的模型黑白名单，用于控制该适配器可以使用的模型列表。
+
+| 配置项 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `modelFilter.mode` | string | - | 过滤模式：`whitelist` (白名单) 或 `blacklist` (黑名单) |
+| `modelFilter.list` | array | - | 模型列表（根据 mode 决定是启用列表还是禁用列表） |
+
+::: tip 模型过滤说明
+- **whitelist (白名单模式)**：仅允许列表中的模型
+- **blacklist (黑名单模式)**：禁用列表中的模型，其他模型可用
+- 推荐使用 WebUI 进行配置
+:::
+
+配置示例：
+
+```yaml
+backend:
+  adapter:
+    lmarena:
+      returnUrl: false
+      modelFilter:
+        mode: whitelist                        # 白名单模式
+        list:                                  # 仅启用以下模型
+          - gemini-3-pro-image-preview
+          - gemini-3-pro-image-preview-2k
+          - gemini-2.5-flash-image-preview
+```
+
 ## 相关文档
 
 - [实例配置](/config/instances) - 浏览器实例和 Worker 详细配置

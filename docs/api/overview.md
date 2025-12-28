@@ -24,18 +24,6 @@ Content-Type: application/json
 | GET | `/v1/models` | 获取模型列表 |
 | GET | `/v1/cookies` | 获取 Cookie |
 
-### 管理接口
-
-| 方法 | 端点 | 说明 |
-| --- | --- | --- |
-| GET | `/admin/status` | 服务状态 |
-| GET | `/admin/stats` | 统计信息 |
-| GET | `/admin/queue` | 队列状态 |
-| POST | `/admin/restart` | 重启服务 |
-| POST | `/admin/stop` | 停止服务 |
-| GET | `/admin/vnc/status` | VNC 状态 |
-| POST | `/admin/cache/clear` | 清理缓存 |
-
 ## 错误响应
 
 所有 API 错误返回统一格式：

@@ -74,6 +74,51 @@ backend:
 | `nanobananafree_ai` | Nano Banana Free |
 | `merge` | 聚合模式（单标签多后端） |
 
+## 模型过滤器 (Model Filter)
+
+每个适配器都可以配置专属的模型黑白名单，用于控制该适配器可以使用的模型列表。
+
+### 配置方式
+
+模型过滤器配置在 `backend.adapter.<适配器ID>` 下：
+
+```yaml
+backend:
+  adapter:
+    lmarena:
+      returnUrl: false
+      modelFilter:
+        mode: whitelist                        # 白名单whitelist 黑名单blacklist
+        list:                                  # 仅启用和仅禁用的模型列表
+          - gemini-3-pro-image-preview
+          - gemini-3-pro-image-preview-2k
+          - gemini-2.5-flash-image-preview
+```
+
+### 配置项说明
+
+| 配置项 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `mode` | string | ✅ | 过滤模式：`whitelist` 或 `blacklist` |
+| `list` | array | ✅ | 模型ID列表 |
+
+### 过滤模式
+
+- **whitelist (白名单模式)**：仅允许列表中指定的模型，其他模型将被过滤掉
+- **blacklist (黑名单模式)**：禁用列表中指定的模型，其他模型可正常使用
+
+### 使用建议
+
+::: tip 推荐使用 WebUI 配置
+推荐使用 WebUI 的适配器设置界面进行模型过滤器配置，可视化操作更加便捷。
+:::
+
+::: warning 注意事项
+- 模型 ID 必须与适配器实际支持的模型 ID 完全匹配
+- 白名单模式下，如果列表为空或没有匹配的模型，将无法使用该适配器
+- 每个适配器的模型过滤器配置相互独立
+:::
+
 ## 聚合模式 (Merge)
 
 聚合模式允许在单个标签页中支持多个后端，实现故障转移：
