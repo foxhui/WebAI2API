@@ -18,6 +18,7 @@
 | [**DeepSeek**](https://chat.deepseek.com/) | ✅ | 🚫 | 🚫 | 
 | [**Sora**](https://sora.chatgpt.com/) | 🚫 | 🚫 | ✅ | 
 | [**Google Flow**](https://labs.google/fx/zh/tools/flow) | 🚫 | ✅ | ❌ | 
+| [**豆包**](https://www.doubao.com/) | ✅ | ✅ | ❌ | 
 | 待续... | - | - | - | 
 
 ::: tip 实测环境表现
@@ -28,10 +29,10 @@
 
 ## 项目截图
 
-![Image](https://github.com/user-attachments/assets/296a518e-c42b-4e39-8ff6-9b4381ed4f6e)
+![Image](/guide_introduction/1.webp)
 
-![Image](https://github.com/user-attachments/assets/bfa30ece-6947-4f18-b2c9-ccc8087b7e89) 
+![Image](/guide_introduction/2.webp) 
 
-![Image](https://github.com/user-attachments/assets/5b15ebd2-7593-4f0e-8561-83d6ba5d88ab) 
+![Image](/guide_introduction/3.webp) 
 
-![Image](https://github.com/user-attachments/assets/53deea29-4071-4a07-8a61-211761c5f2f7) 
+![Image](/guide_introduction/4.webp) 
