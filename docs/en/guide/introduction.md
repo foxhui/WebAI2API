@@ -16,11 +16,11 @@ This English version is translated by **Gemini 3 Flash**.
 | [**Gemini Enterprise Business**](https://business.gemini.google/) | ✅ | ✅ | ✅ |
 | [**Nano Banana Free**](https://nanobananafree.ai/) | 🚫 | ✅ | 🚫 |
 | [**zAI**](https://zai.is/) | ✅ | ✅ | 🚫 |
-| [**Google Gemini**](https://gemini.google.com/) | ✅ | ✅ | ✅ | 
+| [**Google Gemini**](https://gemini.google.com/) | ✅ | ✅💧 | ✅💧 | 
 | [**ZenMux**](https://zenmux.ai/) | ✅ | ❌ | 🚫 | 
 | [**ChatGPT**](https://chatgpt.com/) | ✅ | ✅ | 🚫 | 
 | [**DeepSeek**](https://chat.deepseek.com/) | ✅ | 🚫 | 🚫 | 
-| [**Sora**](https://sora.chatgpt.com/) | 🚫 | 🚫 | ✅ | 
+| [**Sora**](https://sora.chatgpt.com/) | 🚫 | 🚫 | ✅💧 | 
 | [**Google Flow**](https://labs.google/fx/zh/tools/flow) | 🚫 | ✅ | ❌ | 
 | [**Doubao**](https://www.doubao.com/) | ✅ | ✅ | ❌ | 
 | More coming soon... | - | - | - | 
@@ -28,7 +28,7 @@ This English version is translated by **Gemini 3 Flash**.
 ::: tip Note
 **Get Full Model List**: Use the `GET /v1/models` endpoint to view all available models and their details in your current configuration.
 
-✅ Supported; ❌ Not currently supported, but may be in the future; 🚫 Not supported by the website.
+✅ Supported; ❌ Not currently supported, but may be in the future; 🚫 Not supported by the website; 💧 Results contain watermarks that cannot be removed.
 :::
 
 ## Screenshots
