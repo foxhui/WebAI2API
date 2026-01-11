@@ -306,7 +306,9 @@ export async function initBrowserBase(config, options = {}) {
             // 禁用背景模糊滤镜 (高 CPU 消耗)
             'layout.css.backdrop-filter.enabled': false,
             // 告诉网页用户倾向于减少动画 (触发网页自身的优化)
-            'ui.prefersReducedMotion': 1
+            'ui.prefersReducedMotion': 1,
+            // 站点隔离
+            ...(browserConfig.fission === false ? { 'fission.autostart': false } : {})
         }
     };
 

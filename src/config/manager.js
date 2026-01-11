@@ -81,6 +81,7 @@ export function getBrowserConfig() {
     return {
         path: browser.path || '',
         headless: browser.headless || false,
+        fission: browser.fission !== false, // 默认 true
         proxy: {
             enable: proxy.enable || false,
             type: proxy.type || 'http',
@@ -104,6 +105,7 @@ export function saveBrowserConfig(data) {
 
     if (data.path !== undefined) config.browser.path = data.path;
     if (data.headless !== undefined) config.browser.headless = data.headless;
+    if (data.fission !== undefined) config.browser.fission = data.fission;
 
     if (data.proxy) {
         if (!config.browser.proxy) config.browser.proxy = {};

@@ -8,6 +8,7 @@ const settingsStore = useSettingsStore();
 const formData = reactive({
     path: '',
     headless: false,
+    fission: true,
     // 全局代理
     proxyEnable: false,
     proxyType: 'http',
@@ -23,6 +24,7 @@ onMounted(async () => {
     const cfg = settingsStore.browserConfig || {};
     formData.path = cfg.path || '';
     formData.headless = cfg.headless || false;
+    formData.fission = cfg.fission !== false; // 默认 true
 
     if (cfg.proxy) {
         formData.proxyEnable = cfg.proxy.enable || false;
@@ -40,6 +42,7 @@ const handleSave = async () => {
     const config = {
         path: formData.path,
         headless: formData.headless,
+        fission: formData.fission,
         proxy: {
             enable: formData.proxyEnable,
             type: formData.proxyType,
@@ -76,11 +79,26 @@ const handleSave = async () => {
                     <div style="margin-bottom: 8px;">
                         <div style="font-weight: 600; margin-bottom: 4px;">无头模式</div>
                         <div style="font-size: 12px; color: #8c8c8c; margin-bottom: 8px;">
-                            启用后浏览器将在后台运行，不显示窗口
+                            启用后浏览器无界面化运行（登录模式和 Xvfb 模式会强行禁用）
                         </div>
                         <a-switch v-model:checked="formData.headless" />
                         <span style="margin-left: 8px;">
                             {{ formData.headless ? '已启用' : '未启用' }}
+                        </span>
+                    </div>
+                </a-col>
+
+                <!-- 站点隔离 (Fission) -->
+                <a-col :xs="24" :md="12">
+                    <div style="margin-bottom: 8px;">
+                        <div style="font-weight: 600; margin-bottom: 4px;">站点隔离 (Fission)</div>
+                        <div style="font-size: 12px; color: #8c8c8c; margin-bottom: 8px;">
+                            关闭可低内存占用，适合低配服务器<br>
+                            <span style="color: #faad14;">⚠️ 反爬检测可能通过检测单进程或者跨进程延迟来识别自动化特征</span>
+                        </div>
+                        <a-switch v-model:checked="formData.fission" />
+                        <span style="margin-left: 8px;">
+                            {{ formData.fission ? '已启用' : '已关闭 (省内存)' }}
                         </span>
                     </div>
                 </a-col>

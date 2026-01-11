@@ -149,6 +149,13 @@ browser:
   
   # 是否启用无头模式
   headless: false
+
+  # 站点隔离 (fission.autostart)
+  # 开启保持 Firefox 默认开启状态
+  # 关闭此项可显著降低内存占用，防止低配服务器崩溃
+  # ⚠️ 风险提示: 正常 Firefox 用户默认开启 Fission，虽然关闭它不会泄露常规指纹，
+  # 但极高阶的反爬系统可能会通过检测“单进程模型”或“跨进程通信延迟”来识别自动化特征！
+  fission: true
   
   # [全局代理] 如果 Instance 没有独立配置代理，将使用此配置
   proxy:

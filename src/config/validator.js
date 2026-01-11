@@ -77,6 +77,11 @@ export function validateBrowserConfig(data) {
         errors.push('headless 必须是布尔值');
     }
 
+    // Fission 校验
+    if (data.fission !== undefined && typeof data.fission !== 'boolean') {
+        errors.push('fission 必须是布尔值');
+    }
+
     // Proxy 校验
     if (data.proxy) {
         if (data.proxy.enable !== undefined && typeof data.proxy.enable !== 'boolean') {

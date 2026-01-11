@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✨ Added
 - **增加计数功能**
   - 支持在 WebUI 记录与查看成功次数
+- **F ireFox 参数**
+  - 增加 FireFox 站点隔离机制开关
 
 ### 🐛 Fixed
 - **修复图片上传**
