@@ -68,16 +68,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         await waitForInput(page, textareaSelector, { click: false });
         await sleep(1500, 2500);
 
-        // 2. 上传图片 (uploadImages)
-        if (imgPaths && imgPaths.length > 0) {
-            await pasteImages(page, textareaSelector, imgPaths);
-        }
-
-        // 3. 填写提示词 (fillPrompt)
-        await safeClick(page, textareaSelector, { bias: 'input' });
-        await fillPrompt(page, textareaSelector, prompt, meta);
-
-        // 4. 选择模型
+        // 2. 选择模型(必须在上传图片之前,因为能否上传图片取决于模型 imagePolicy)
         if (modelId) {
             logger.debug('适配器', `选择模型: ${modelId}`, meta);
             const modelCombobox = page.locator('#chat-area')
@@ -96,6 +87,15 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             await page.keyboard.press('Enter');
             await sleep(500, 800);
         }
+
+        // 3. 上传图片 (uploadImages)
+        if (imgPaths && imgPaths.length > 0) {
+            await pasteImages(page, textareaSelector, imgPaths);
+        }
+
+        // 4. 填写提示词 (fillPrompt)
+        await safeClick(page, textareaSelector, { bias: 'input' });
+        await fillPrompt(page, textareaSelector, prompt, meta);
 
         // 5. 提交表单 (submit)
         logger.debug('适配器', '点击发送...', meta);
@@ -212,7 +212,7 @@ export const manifest = {
         { id: 'qwen-image-edit', codeName: '995cf221-af30-466d-a809-8e0985f83649', imagePolicy: 'required' },
         { id: 'ideogram-v3-quality', codeName: '73378be5-cdba-49e7-b3d0-027949871aa6', imagePolicy: 'forbidden' },
         { id: 'hunyuan-image-2.1', codeName: 'a9a26426-5377-4efa-bef9-de71e29ad943', imagePolicy: 'forbidden' },
-        { id: 'qwen-image-2512', codeName: '', imagePolicy: 'optional' },
+        { id: 'qwen-image-2512', codeName: '', imagePolicy: 'forbidden' },
         { id: 'wan2.5-t2i-preview', codeName: '019a5050-2875-78ed-ae3a-d9a51a438685', imagePolicy: 'forbidden' },
         { id: 'reve-v1.1', codeName: '', imagePolicy: 'required' },
         { id: 'chatgpt-image-latest', codeName: '', imagePolicy: 'optional' },

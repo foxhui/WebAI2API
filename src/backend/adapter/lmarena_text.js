@@ -49,16 +49,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         await waitForInput(page, textareaSelector, { click: false });
         await sleep(1500, 2500);
 
-        // 2. 上传图片 (uploadImages)
-        if (imgPaths && imgPaths.length > 0) {
-            await pasteImages(page, textareaSelector, imgPaths);
-        }
-
-        // 3. 填写提示词 (fillPrompt)
-        await safeClick(page, textareaSelector, { bias: 'input' });
-        await fillPrompt(page, textareaSelector, prompt, meta);
-
-        // 4. 选择模型 
+        // 2. 选择模型(必须在上传图片之前,因为能否上传图片取决于模型 imagePolicy)
         if (modelId) {
             logger.debug('适配器', `选择模型: ${modelId}`, meta);
             const modelCombobox = page.locator('#chat-area')
@@ -77,6 +68,15 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             await page.keyboard.press('Enter');
             await sleep(500, 800);
         }
+
+        // 3. 上传图片 (uploadImages)
+        if (imgPaths && imgPaths.length > 0) {
+            await pasteImages(page, textareaSelector, imgPaths);
+        }
+
+        // 4. 填写提示词 (fillPrompt)
+        await safeClick(page, textareaSelector, { bias: 'input' });
+        await fillPrompt(page, textareaSelector, prompt, meta);
 
         // 5. 提交表单 (submit)
         logger.debug('适配器', '点击发送...', meta);
