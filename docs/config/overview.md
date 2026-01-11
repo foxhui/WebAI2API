@@ -42,10 +42,35 @@ queue:
 
 # 浏览器配置
 browser:
+  # 浏览器可执行文件路径 (留空则使用默认的)
+  # 非必要不建议修改，否则你要处理很多额外依赖
+  # Windows系统示例 "C:\\camoufox\\camoufox.exe"
+  # Linux系统示例 "/opt/camoufox/camoufox"
   path: ""
+  
+  # 是否启用无头模式
   headless: false
+
+  # 站点隔离 (fission.autostart)
+  # 开启保持 Firefox 默认开启状态
+  # 关闭此项可显著降低内存占用，防止低配服务器崩溃
+  # ⚠️ 风险提示: 正常 Firefox 用户默认开启 Fission，虽然关闭它不会泄露常规指纹，
+  # 但极高阶的反爬系统可能会通过检测“单进程模型”或“跨进程通信延迟”来识别自动化特征！
+  fission: true
+  
+  # [全局代理] 如果 Instance 没有独立配置代理，将使用此配置
   proxy:
+    # 是否启用代理
     enable: false
+    # 代理类型: http 或 socks5
+    type: http
+    # 代理主机
+    host: 127.0.0.1
+    # 代理端口
+    port: 7890
+    # 代理认证 (可选)
+    # user: username
+    # passwd: password
 ```
 
 ## 配置项说明
@@ -82,6 +107,7 @@ browser:
 | --- | --- | --- | --- |
 | `path` | string | `""` | Camoufox 可执行文件路径，留空使用默认 |
 | `headless` | boolean | `false` | 是否启用无头模式 |
+| `fission` | boolean | `true` | 是否启用站点隔离 (fission.autostart) |
 | `proxy` | object | - | 全局代理配置 |
 
 ### 适配器配置 (backend.adapter)

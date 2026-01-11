@@ -21,6 +21,10 @@ Before you start deploying WebAI2API, please ensure that your environment meets 
 | **CPU** | 1 Core | 2 Cores or above | 2 Cores or above |
 | **Memory** | 1 GB | 2 GB or above | 4 GB or above |
 | **Disk** | 2 GB available | 5 GB or above | 7 GB or above |
+ 
+::: tip Optimization Suggestions
+For low-end servers with 1-2 GB of RAM, it is strongly recommended to enable **SWAP** or **ZRAM** to improve system stability and performance. Refer to [Linux Low Memory Optimization](/en/admin/optimization) for details.
+:::
 
 ::: tip Real-world Performance
 - **Oracle Free Tier** (1C1G, Debian 12): Limited resources, can be laggy, suitable for testing or light use only.

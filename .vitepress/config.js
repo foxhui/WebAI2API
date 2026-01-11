@@ -59,6 +59,7 @@ export default defineConfig({
             items: [
               { text: 'Web 管理界面', link: '/admin/webui' },
               { text: 'Linux 部署', link: '/admin/linux' },
+              { text: 'Linux 低内存优化', link: '/admin/optimization' },
               { text: '故障排查', link: '/admin/troubleshooting' }
             ]
           }
@@ -109,6 +110,7 @@ export default defineConfig({
             items: [
               { text: 'Web UI', link: '/en/admin/webui' },
               { text: 'Linux Deployment', link: '/en/admin/linux' },
+              { text: 'Linux Optimization', link: '/en/admin/optimization' },
               { text: 'Troubleshooting', link: '/en/admin/troubleshooting' }
             ]
           }

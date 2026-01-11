@@ -46,10 +46,35 @@ queue:
 
 # Browser Configuration
 browser:
+  # Path to browser executable (leave empty for default)
+  # Modification is not recommended unless necessary, as you may need to handle extra dependencies
+  # Windows example: "C:\\camoufox\\camoufox.exe"
+  # Linux example: "/opt/camoufox/camoufox"
   path: ""
+  
+  # Whether to enable headless mode
   headless: false
+
+  # Site Isolation (fission.autostart)
+  # Keep enabled for standard Firefox behavior
+  # Disabling this can significantly reduce memory usage and prevent crashes on low-end servers
+  # ⚠️ Risk: Normal Firefox users have Fission enabled by default. While disabling it does not leak common fingerprints, 
+  # extremely advanced anti-bot systems might identify automated features via "single-process model" or "IPC delays".
+  fission: true
+  
+  # [Global Proxy] Used if an Instance does not have its own proxy configuration
   proxy:
+    # Whether to enable proxy
     enable: false
+    # Proxy type: http or socks5
+    type: http
+    # Proxy host
+    host: 127.0.0.1
+    # Proxy port
+    port: 7890
+    # Proxy authentication (optional)
+    # user: username
+    # passwd: password
 ```
 
 ## Configuration Items
@@ -86,6 +111,7 @@ browser:
 | --- | --- | --- | --- |
 | `path` | string | `""` | Path to Camoufox executable. Leave empty to use default. |
 | `headless` | boolean | `false` | Whether to enable headless mode. |
+| `fission` | boolean | `true` | Whether to enable Site Isolation (fission.autostart). |
 | `proxy` | object | - | Global proxy configuration. |
 
 ### Adapter Configuration (backend.adapter)
