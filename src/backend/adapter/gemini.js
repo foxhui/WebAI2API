@@ -5,7 +5,6 @@
 import {
     sleep,
     safeClick,
-    safeScroll,
     uploadFilesViaChooser
 } from '../engine/utils.js';
 import {
@@ -15,7 +14,8 @@ import {
     moveMouseAway,
     waitForInput,
     gotoWithCheck,
-    waitApiResponse
+    waitApiResponse,
+    useContextDownload
 } from '../utils/index.js';
 import { logger } from '../../utils/logger.js';
 
@@ -159,38 +159,34 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             return { image: videoData };
 
         } else {
-            // 图片模式
-            logger.info('适配器', '生成请求成功，等待图片...', meta);
+            // 图片模式：直接从 StreamGenerate 响应体解析图片 URL
+            logger.info('适配器', '生成请求成功，正在解析响应...', meta);
 
-            let imageResponse;
-            try {
-                // 先启动监听器，再滚动触发懒加载，避免错过请求
-                const imageResponsePromise = waitApiResponse(page, {
-                    urlMatch: 'googleusercontent.com/rd-gg-dl',
-                    urlContains: '=s1024-rj',
-                    method: 'GET',
-                    timeout: 60000,
-                    meta
-                });
+            // 解析响应体，提取图片 URL
+            const bodyBuffer = await streamApiResponse.body();
+            const imageUrls = extractImageUrlsFromResponse(bodyBuffer);
 
-                // 等待图片元素出现，然后在chat-history上滚动触发懒加载
-                await page.locator('generated-image').waitFor({ state: 'attached', timeout: 120000 });
-                await safeScroll(page, '#chat-history', { deltaY: 700 });
-                imageResponse = await imageResponsePromise;
-            } catch (e) {
-                const pageError = normalizePageError(e, meta);
-                if (pageError) return pageError;
-                throw e;
+            if (imageUrls.length === 0) {
+                // 没有找到图片 URL，尝试提取文本作为错误信息
+                const errorText = extractAiTextFromResponse(bodyBuffer);
+                const errorMsg = errorText.substring(0, 150) || '生成失败，响应中未包含图片';
+                logger.error('适配器', `未找到图片: ${errorMsg}`, meta);
+                return { error: errorMsg };
             }
 
-            // 获取图片数据
-            const buffer = await imageResponse.body();
-            const base64 = buffer.toString('base64');
-            const contentType = imageResponse.headers()['content-type'] || 'image/jpeg';
-            const imageData = `data:${contentType};base64,${base64}`;
+            // 取第一张图片，追加 =s1024-rj 获取高分辨率
+            const imageUrl = imageUrls[0] + '=s1024-rj';
+            logger.info('适配器', `找到 ${imageUrls.length} 张图片，开始下载...`, meta);
+
+            // 使用封装的下载函数
+            const result = await useContextDownload(imageUrl, page);
+            if (result.error) {
+                logger.error('适配器', result.error, meta);
+                return result;
+            }
 
             logger.info('适配器', '已获取图片，任务完成', meta);
-            return { image: imageData };
+            return result;
         }
 
     } catch (err) {
@@ -231,3 +227,204 @@ export const manifest = {
     // 核心生图方法
     generate
 };
+
+// ==========================================
+// 解析 gRPC Batchexecute 响应
+// ==========================================
+
+/**
+ * 解析 batchexecute/batch RPC 响应（直接操作 Buffer）
+ * @param {Buffer} buf - 响应体 Buffer
+ */
+function parseLenFramedResponse(buf) {
+    let i = 0;
+
+    // 去掉 )]}' 这种 XSSI 前缀（通常是第一行）
+    if (buf.length >= 4 && buf[0] === 0x29 && buf[1] === 0x5d && buf[2] === 0x7d) {
+        const firstNl = buf.indexOf(0x0a);
+        if (firstNl !== -1) i = firstNl + 1;
+    }
+
+    const frames = [];
+
+    const readLineBuf = () => {
+        if (i >= buf.length) return null;
+        const nl = buf.indexOf(0x0a, i);
+        let line;
+        if (nl === -1) {
+            line = buf.slice(i);
+            i = buf.length;
+        } else {
+            line = buf.slice(i, nl);
+            i = nl + 1;
+        }
+        if (line.length && line[line.length - 1] === 0x0d) line = line.slice(0, -1);
+        return line;
+    };
+
+    let pendingLen = null;
+
+    while (true) {
+        const lineBuf = readLineBuf();
+        if (lineBuf === null) break;
+
+        const lineStr = lineBuf.toString('utf8').trim();
+        if (!lineStr) continue;
+
+        if (pendingLen === null) {
+            if (/^\d+$/.test(lineStr)) pendingLen = Number(lineStr);
+            continue;
+        }
+
+        let chunkBuf = lineBuf;
+        let chunkStr = chunkBuf.toString('utf8').trim();
+
+        while (true) {
+            try {
+                frames.push(JSON.parse(chunkStr));
+                break;
+            } catch (e) {
+                const msg = String(e && e.message || '');
+                const looksTruncated = /Unexpected end of JSON input|Unterminated string/.test(msg);
+
+                if (!looksTruncated) break;
+
+                const savedPos = i;
+                const next = readLineBuf();
+                if (next === null) break;
+
+                const nextStr = next.toString('utf8').trim();
+                if (/^\d+$/.test(nextStr)) {
+                    i = savedPos;
+                    break;
+                }
+
+                chunkBuf = Buffer.concat([chunkBuf, Buffer.from('\n'), next]);
+                chunkStr = chunkBuf.toString('utf8').trim();
+            }
+        }
+
+        pendingLen = null;
+    }
+
+    return frames;
+}
+
+/**
+ * 把 frame 里的 payload 再 parse 一次
+ */
+function extractPayloads(frames) {
+    const payloads = [];
+    for (const frame of frames) {
+        if (!Array.isArray(frame)) continue;
+
+        for (const item of frame) {
+            if (!Array.isArray(item)) continue;
+            const payloadStr = item[2];
+            if (typeof payloadStr !== 'string') continue;
+
+            try {
+                payloads.push(JSON.parse(payloadStr));
+            } catch {
+                // ignore
+            }
+        }
+    }
+    return payloads;
+}
+
+/**
+ * 深度遍历，查找 googleusercontent.com/gg-dl 开头的图片 URL
+ * @param {any} root - 要遍历的对象
+ * @returns {string[]} 图片 URL 数组
+ */
+function collectImageUrlsDeep(root) {
+    const urls = [];
+    const stack = [root];
+
+    while (stack.length) {
+        const cur = stack.pop();
+        if (!cur) continue;
+
+        if (typeof cur === 'string') {
+            // 匹配 googleusercontent.com/gg-dl 图片 URL
+            if (cur.includes('googleusercontent.com/gg-dl')) {
+                urls.push(cur);
+            }
+        } else if (Array.isArray(cur)) {
+            for (const v of cur) stack.push(v);
+        } else if (typeof cur === 'object') {
+            for (const v of Object.values(cur)) stack.push(v);
+        }
+    }
+
+    return urls;
+}
+
+/**
+ * 深度遍历，查找 rc_ 开头的文本内容
+ */
+function collectRcTextsDeep(root) {
+    const bestByRc = new Map();
+    const stack = [root];
+
+    while (stack.length) {
+        const cur = stack.pop();
+        if (!cur) continue;
+
+        if (Array.isArray(cur)) {
+            const maybeRc = cur[0];
+            const maybeArr = cur[1];
+            if (typeof maybeRc === 'string' && maybeRc.startsWith('rc_') && Array.isArray(maybeArr)) {
+                const text = maybeArr.filter(v => typeof v === 'string').join('');
+                if (text) {
+                    const prev = bestByRc.get(maybeRc) || '';
+                    if (text.length >= prev.length) bestByRc.set(maybeRc, text);
+                }
+            }
+            for (const v of cur) stack.push(v);
+        } else if (typeof cur === 'object') {
+            for (const v of Object.values(cur)) stack.push(v);
+        }
+    }
+
+    return bestByRc;
+}
+
+/**
+ * 从响应体 Buffer 中提取图片 URL
+ * @param {Buffer} bodyBuffer - 响应体 Buffer
+ * @returns {string[]} 图片 URL 数组
+ */
+function extractImageUrlsFromResponse(bodyBuffer) {
+    const frames = parseLenFramedResponse(bodyBuffer);
+    const payloads = extractPayloads(frames);
+
+    const allUrls = [];
+    for (const payload of payloads) {
+        const urls = collectImageUrlsDeep(payload);
+        allUrls.push(...urls);
+    }
+
+    // 去重
+    return [...new Set(allUrls)];
+}
+
+/**
+ * 从响应体 Buffer 中提取 AI 文本（用于错误提示）
+ * @param {Buffer} bodyBuffer - 响应体 Buffer
+ * @returns {string}
+ */
+function extractAiTextFromResponse(bodyBuffer) {
+    const frames = parseLenFramedResponse(bodyBuffer);
+    const payloads = extractPayloads(frames);
+
+    let best = '';
+    for (const payload of payloads) {
+        const m = collectRcTextsDeep(payload);
+        for (const text of m.values()) {
+            if (text.length > best.length) best = text;
+        }
+    }
+    return best;
+}
