@@ -77,11 +77,17 @@ export function getBrowserConfig() {
     const config = readRawConfig();
     const browser = config.browser || {};
     const proxy = browser.proxy || {};
+    const cssInject = browser.cssInject || {};
 
     return {
         path: browser.path || '',
         headless: browser.headless || false,
         fission: browser.fission !== false, // 默认 true
+        cssInject: {
+            animation: cssInject.animation || false,
+            filter: cssInject.filter || false,
+            font: cssInject.font || false
+        },
         proxy: {
             enable: proxy.enable || false,
             type: proxy.type || 'http',
@@ -106,6 +112,15 @@ export function saveBrowserConfig(data) {
     if (data.path !== undefined) config.browser.path = data.path;
     if (data.headless !== undefined) config.browser.headless = data.headless;
     if (data.fission !== undefined) config.browser.fission = data.fission;
+
+    // CSS 性能优化配置
+    if (data.cssInject) {
+        if (!config.browser.cssInject) config.browser.cssInject = {};
+        const css = data.cssInject;
+        if (css.animation !== undefined) config.browser.cssInject.animation = css.animation;
+        if (css.filter !== undefined) config.browser.cssInject.filter = css.filter;
+        if (css.font !== undefined) config.browser.cssInject.font = css.font;
+    }
 
     if (data.proxy) {
         if (!config.browser.proxy) config.browser.proxy = {};

@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.4.6] - 2026-01-11
+## [3.4.7] - 2026-01-14
+
+### ✨ Added
+- **CSS注入**
+  - 增加 CSS 注入，支持禁用动画，禁用模糊滤镜，降低字体渲染精度
+
+### 🔄 Changed
+- **超时优化**
+  - 增长 Google Flow 适配器的控件等待超时时间，防止在低配设备上因操作过慢而超时
+
+## [3.4.6] - 2026-01-13
 
 ### 🔄 Changed
 - **优化速度**

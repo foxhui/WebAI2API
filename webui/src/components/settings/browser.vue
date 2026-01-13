@@ -9,6 +9,10 @@ const formData = reactive({
     path: '',
     headless: false,
     fission: true,
+    // CSS 性能优化
+    cssAnimation: false,
+    cssFilter: false,
+    cssFont: false,
     // 全局代理
     proxyEnable: false,
     proxyType: 'http',
@@ -26,6 +30,13 @@ onMounted(async () => {
     formData.headless = cfg.headless || false;
     formData.fission = cfg.fission !== false; // 默认 true
 
+    // CSS 性能优化
+    if (cfg.cssInject) {
+        formData.cssAnimation = cfg.cssInject.animation || false;
+        formData.cssFilter = cfg.cssInject.filter || false;
+        formData.cssFont = cfg.cssInject.font || false;
+    }
+
     if (cfg.proxy) {
         formData.proxyEnable = cfg.proxy.enable || false;
         formData.proxyType = cfg.proxy.type || 'http';
@@ -42,6 +53,11 @@ const handleSave = async () => {
     const config = {
         path: formData.path,
         headless: formData.headless,
+        cssInject: {
+            animation: formData.cssAnimation,
+            filter: formData.cssFilter,
+            font: formData.cssFont
+        },
         fission: formData.fission,
         proxy: {
             enable: formData.proxyEnable,
@@ -176,6 +192,64 @@ const handleSave = async () => {
                                 </div>
                             </a-col>
                         </a-row>
+                    </a-collapse-panel>
+
+                    <!-- CSS 性能优化 -->
+                    <a-collapse-panel key="cssInject" header="CSS 性能优化注入">
+                        <a-alert
+                            message="⚡ 适用于无 GPU 的服务器环境，通过禁用网页特效来降低 CPU 压力"
+                            type="info"
+                            show-icon
+                            style="margin-bottom: 16px;"
+                        />
+
+                        <!-- 禁用动画 -->
+                        <div style="margin-bottom: 16px; padding: 12px; background: #fafafa; border-radius: 6px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <div style="font-weight: 600; margin-bottom: 4px;">禁用网页动画</div>
+                                    <div style="font-size: 12px; color: #8c8c8c;">
+                                        移除 transition 和 animation，显著降低 CPU 持续占用
+                                    </div>
+                                    <a-tag color="green" style="margin-top: 6px;">风险：极低</a-tag>
+                                </div>
+                                <a-switch v-model:checked="formData.cssAnimation" />
+                            </div>
+                        </div>
+
+                        <!-- 禁用滤镜 -->
+                        <div style="margin-bottom: 16px; padding: 12px; background: #fafafa; border-radius: 6px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <div style="font-weight: 600; margin-bottom: 4px;">禁用滤镜和阴影</div>
+                                    <div style="font-size: 12px; color: #8c8c8c;">
+                                        移除 blur(模糊)、box-shadow(阴影) 等复杂渲染
+                                    </div>
+                                    <a-tag color="orange" style="margin-top: 6px;">风险：中</a-tag>
+                                    <span style="font-size: 11px; color: #faad14; margin-left: 8px;">
+                                        界面会变丑，少数反爬可能检测样式计算结果
+                                    </span>
+                                </div>
+                                <a-switch v-model:checked="formData.cssFilter" />
+                            </div>
+                        </div>
+
+                        <!-- 降低字体渲染 -->
+                        <div style="padding: 12px; background: #fff2f0; border-radius: 6px; border: 1px solid #ffccc7;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <div style="font-weight: 600; margin-bottom: 4px;">降低字体渲染质量</div>
+                                    <div style="font-size: 12px; color: #8c8c8c;">
+                                        强制使用极速渲染模式，微量减少 CPU 绘图压力
+                                    </div>
+                                    <a-tag color="red" style="margin-top: 6px;">⚠️ 风险：高</a-tag>
+                                    <div style="font-size: 11px; color: #cf1322; margin-top: 4px;">
+                                        会导致文字边缘有锯齿，且可能导致字体指纹与标准浏览器不符，易被高级反爬识别
+                                    </div>
+                                </div>
+                                <a-switch v-model:checked="formData.cssFont" />
+                            </div>
+                        </div>
                     </a-collapse-panel>
                 </a-collapse>
             </div>

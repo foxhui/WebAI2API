@@ -352,6 +352,75 @@ export async function initBrowserBase(config, options = {}) {
     const screenHeight = myFingerprint.screen?.availHeight || 768;
     await page.setViewportSize({ width: screenWidth, height: screenHeight });
 
+    // CSS 性能优化注入
+    const cssInjectConfig = browserConfig.cssInject || {};
+    const cssToInject = [];
+
+    if (cssInjectConfig.animation) {
+        cssToInject.push(`
+            *, *::before, *::after {
+                /* 过渡和关键帧动画 */
+                transition: none !important;
+                animation: none !important;
+                transition-property: none !important;
+                
+                /* 平滑滚动 */
+                scroll-behavior: auto !important;
+            }
+            
+            /* transform 动画 */
+            *:not(dummy-selector) {
+                transition-duration: 0s !important;
+                animation-duration: 0s !important;
+                transition-delay: 0s !important;
+                animation-delay: 0s !important;
+            }
+        `);
+    }
+
+    if (cssInjectConfig.filter) {
+        cssToInject.push(`
+            *, *::before, *::after {
+                filter: none !important;
+                backdrop-filter: none !important;
+                box-shadow: none !important;
+                text-shadow: none !important;
+                mix-blend-mode: normal !important;
+            }
+        `);
+    }
+
+    if (cssInjectConfig.font) {
+        cssToInject.push(`
+            html, body {
+                text-rendering: optimizeSpeed !important;
+            }
+        `);
+    }
+
+    // 只有当至少一个开关启用时才进行注入，防止影响浏览器指纹
+    if (cssToInject.length > 0) {
+        const cssString = cssToInject.join('\n');
+        await context.addInitScript(`
+            (function() {
+                const style = document.createElement('style');
+                style.textContent = ${JSON.stringify(cssString)};
+                if (document.head) {
+                    document.head.appendChild(style);
+                } else {
+                    document.addEventListener('DOMContentLoaded', () => {
+                        document.head.appendChild(style);
+                    });
+                }
+            })();
+        `);
+        const enabledFeatures = [];
+        if (cssInjectConfig.animation) enabledFeatures.push('动画禁用');
+        if (cssInjectConfig.filter) enabledFeatures.push('滤镜禁用');
+        if (cssInjectConfig.font) enabledFeatures.push('字体优化');
+        logger.info('浏览器', `[${markLabel}] CSS 注入已启用: ${enabledFeatures.join(', ')}`);
+    }
+
     // 返回 context 和 page（导航、预热、cursor 初始化由工作池负责）
     return {
         context,
