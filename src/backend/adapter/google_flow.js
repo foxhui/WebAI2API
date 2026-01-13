@@ -80,7 +80,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         const modeCombo = page.getByRole('combobox').filter({
             has: page.locator('i', { hasText: 'arrow_drop_down' })
         });
-        await modeCombo.first().waitFor({ state: 'visible', timeout: 10000 });
+        await modeCombo.first().waitFor({ state: 'visible', timeout: 30000 });
         await safeClick(page, modeCombo.first(), { bias: 'button' });
 
         const imageOption = page.getByRole('option').filter({
@@ -91,7 +91,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         // 4. 打开 Tune 菜单进行配置
         logger.debug('适配器', '打开设置菜单...', meta);
         const tuneBtn = page.getByRole('button', { name: /^tune/ });
-        await tuneBtn.waitFor({ state: 'visible', timeout: 10000 });
+        await tuneBtn.waitFor({ state: 'visible', timeout: 30000 });
         await safeClick(page, tuneBtn, { bias: 'button' });
         await sleep(300, 500);
 
@@ -147,7 +147,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 // 5.1 点击 add 按钮
                 await sleep(300, 500);
                 const addBtn = page.getByRole('button', { name: 'add' });
-                await addBtn.waitFor({ state: 'visible', timeout: 10000 });
+                await addBtn.waitFor({ state: 'visible', timeout: 30000 });
                 await safeClick(page, addBtn, { bias: 'button' });
 
                 // 5.2 点击 upload 按钮并选择文件（不等待上传完成）
@@ -162,7 +162,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 });
 
                 const cropBtn = page.getByRole('button', { name: /^crop/ });
-                await cropBtn.waitFor({ state: 'visible', timeout: 10000 });
+                await cropBtn.waitFor({ state: 'visible', timeout: 30000 });
                 await safeClick(page, cropBtn, { bias: 'button' });
 
                 // 5.4 等待上传完成
@@ -191,7 +191,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         // 8. 发送提示词
         logger.info('适配器', '发送提示词...', meta);
         const sendBtn = page.getByRole('button', { name: /^arrow_forward/ });
-        await sendBtn.waitFor({ state: 'visible', timeout: 10000 });
+        await sendBtn.waitFor({ state: 'visible', timeout: 30000 });
         await safeClick(page, sendBtn, { bias: 'button' });
 
         // 9. 等待 API 响应
