@@ -50,8 +50,8 @@ This English version is translated by **Gemini 3 Flash**.
    Add or modify the following:
 
    ```bash
-   # Use zstd compression algorithm for the best balance of speed and ratio
-   ALGO=zstd
+   # Use lz4 compression algorithm for the best balance of speed and ratio
+   ALGO=lz4
 
    # Use 60% of total memory as ZRAM size
    PERCENT=60
@@ -89,8 +89,8 @@ Recommended to use `zram-generator` for these systems.
    [zram0]
    # Use 60% of total memory
    zram-size = ram * 0.6
-   # Use zstd compression algorithm
-   compression-algorithm = zstd
+   # Use lz4 compression algorithm
+   compression-algorithm = lz4
    # Higher priority than disk Swap
    swap-priority = 100
    ```
@@ -106,7 +106,7 @@ Recommended to use `zram-generator` for these systems.
 Regardless of the system, it is recommended to adjust `swappiness` to use ZRAM more aggressively.
 
 ```bash
-grep -q "vm.swappiness" /etc/sysctl.conf || echo "vm.swappiness=80" | tee -a /etc/sysctl.conf
+grep -q "vm.swappiness" /etc/sysctl.conf || echo "vm.swappiness=20" | tee -a /etc/sysctl.conf
 sysctl -p
 ```
 

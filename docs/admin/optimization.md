@@ -46,8 +46,8 @@
    添加或修改以下内容：
 
    ```bash
-   # 使用 zstd 压缩算法，速度和压缩率最平衡
-   ALGO=zstd
+   # 使用 lz4 压缩算法，速度和压缩率最平衡
+   ALGO=lz4
 
    # 使用内存总量的 60% 作为 ZRAM 大小
    PERCENT=60
@@ -85,8 +85,8 @@
    [zram0]
    # 使用内存总量的 60%
    zram-size = ram * 0.6
-   # 使用 zstd 压缩算法
-   compression-algorithm = zstd
+   # 使用 lz4 压缩算法
+   compression-algorithm = lz4
    # 优先级高于磁盘 Swap
    swap-priority = 100
    ```
@@ -102,7 +102,7 @@
 无论使用哪种系统，都建议调整 `swappiness` 以更积极地使用 ZRAM。
 
 ```bash
-grep -q "vm.swappiness" /etc/sysctl.conf || echo "vm.swappiness=80" | tee -a /etc/sysctl.conf
+grep -q "vm.swappiness" /etc/sysctl.conf || echo "vm.swappiness=20" | tee -a /etc/sysctl.conf
 sysctl -p
 ```
 

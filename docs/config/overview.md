@@ -57,6 +57,27 @@ browser:
   # ⚠️ 风险提示: 正常 Firefox 用户默认开启 Fission，虽然关闭它不会泄露常规指纹，
   # 但极高阶的反爬系统可能会通过检测“单进程模型”或“跨进程通信延迟”来识别自动化特征！
   fission: true
+
+  # CSS 性能优化注入
+  # 通过禁用网页特效在无显卡环境下降低 CPU 压力
+  cssInject:
+    # 禁用网页动画
+    # 作用：移除 transition 和 animation
+    # 收益：显著降低 CPU 持续占用
+    # 风险：极低。几乎不影响浏览器指纹
+    animation: false
+
+    # 禁用滤镜和阴影
+    # 作用：移除 blur(模糊)、box-shadow(阴影) 等复杂渲染
+    # 收益：在无显卡环境下，能避免 CPU 占用 100% 导致卡顿
+    # 风险：中。界面会变得难看，少数反爬可能会检测样式计算结果
+    filter: false
+
+    # 降低字体渲染质量
+    # 作用：关闭字体抗锯齿，强制使用极速渲染模式
+    # 收益：微量减少 CPU 绘图压力
+    # ⚠️ 风险：高。会导致文字边缘有锯齿，且可能导致字体指纹与标准浏览器不符（易被高级反爬识别）
+    font: false
   
   # [全局代理] 如果 Instance 没有独立配置代理，将使用此配置
   proxy:
@@ -109,6 +130,26 @@ browser:
 | `headless` | boolean | `false` | 是否启用无头模式 |
 | `fission` | boolean | `true` | 是否启用站点隔离 (fission.autostart) |
 | `proxy` | object | - | 全局代理配置 |
+| `cssInject` | object | - | CSS 性能优化注入配置 |
+
+#### CSS 优化注入 (cssInject)
+
+针对无显卡 (CPU-Only) 环境的性能优化选项。通过注入 CSS 禁用部分网页特效来降低 CPU 负载。
+
+| 配置项 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `animation` | boolean | `false` | **禁用动画** (推荐)<br>作用：移除 transition 和 animation<br>收益：显著降低 CPU 持续占用<br>风险：极低 (几乎不影响指纹) |
+| `filter` | boolean | `false` | **禁用特效**<br>作用：移除 blur、box-shadow 等<br>收益：避免复杂渲染导致的卡顿<br>风险：中 (界面美观度下降，极少反爬检测) |
+| `font` | boolean | `false` | **极速字体**<br>作用：关闭字体抗锯齿<br>收益：微量减少绘图压力<br>风险：**高** (字体指纹异常，易被高级反爬识别) |
+
+### 后端资源池 (backend.pool)
+
+| 配置项 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `strategy` | string | `least_busy` | 负载均衡策略，可选：`least_busy` |
+| `failover.enabled` | boolean | `true` | 是否启用故障自动转移 |
+| `failover.maxRetries` | number | `2` | 故障转移最大重试次数 |
+| `instances` | array | - | 浏览器实例列表，详见 [实例配置](/config/instances) |
 
 ### 适配器配置 (backend.adapter)
 

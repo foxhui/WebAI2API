@@ -61,6 +61,27 @@ browser:
   # ⚠️ Risk: Normal Firefox users have Fission enabled by default. While disabling it does not leak common fingerprints, 
   # extremely advanced anti-bot systems might identify automated features via "single-process model" or "IPC delays".
   fission: true
+
+  # CSS Performance Injection
+  # Reduce CPU load by disabling web effects (Best for CPU-only environments)
+  cssInject:
+    # Disable web animations
+    # Effect: Removes transition and animation
+    # Benefit: Significantly lowers continuous CPU usage
+    # Risk: Very low. Almost no impact on browser fingerprint
+    animation: false
+
+    # Disable filters and shadows
+    # Effect: Removes blur, box-shadow, etc.
+    # Benefit: Prevents CPU spikes and lag in no-GPU environments
+    # Risk: Medium. Interface aesthetics degraded, few anti-bots might detect style calculations
+    filter: false
+
+    # Reduce font rendering quality
+    # Effect: Disables font anti-aliasing, forces fast rendering mode
+    # Benefit: Slightly reduces CPU drawing pressure
+    # ⚠️ Risk: High. Jagged text edges; font fingerprint differs from standard browsers (detected by advanced anti-bots)
+    font: false
   
   # [Global Proxy] Used if an Instance does not have its own proxy configuration
   proxy:
@@ -113,6 +134,26 @@ browser:
 | `headless` | boolean | `false` | Whether to enable headless mode. |
 | `fission` | boolean | `true` | Whether to enable Site Isolation (fission.autostart). |
 | `proxy` | object | - | Global proxy configuration. |
+| `cssInject` | object | - | CSS performance injection configuration. |
+
+#### CSS Injection (cssInject)
+
+Performance optimization options for CPU-Only environments. Reduces CPU load by disabling specific web effects via CSS injection.
+
+| Item | Type | Default | Description |
+| --- | --- | --- | --- |
+| `animation` | boolean | `false` | **Disable Animations** (Recommended)<br>Effect: Removes transition and animation.<br>Benefit: Significantly reduces continuous CPU usage.<br>Risk: Very Low (Negligible impact on fingerprint). |
+| `filter` | boolean | `false` | **Disable Effects**<br>Effect: Removes blur, box-shadow, etc.<br>Benefit: Prevents UI lag caused by complex rendering.<br>Risk: Medium (UI Aesthetics degraded, rarely checked by anti-bots). |
+| `font` | boolean | `false` | **Fast Rendering Fonts**<br>Effect: Disables font anti-aliasing.<br>Benefit: Slightly reduces rendering pressure.<br>Risk: **High** (Font fingerprint anomaly, easily detected by advanced anti-bots). |
+
+### Backend Resource Pool (backend.pool)
+
+| Item | Type | Default | Description |
+| --- | --- | --- | --- |
+| `strategy` | string | `least_busy` | Load balancing strategy. Option: `least_busy`. |
+| `failover.enabled` | boolean | `true` | Whether to enable automatic failover. |
+| `failover.maxRetries` | number | `2` | Maximum retry attempts for failover. |
+| `instances` | array | - | List of browser instances. See [Instances Configuration](/en/config/instances). |
 
 ### Adapter Configuration (backend.adapter)
 
