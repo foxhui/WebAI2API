@@ -228,11 +228,13 @@ export async function safeClick(page, target, options = {}) {
     const clickCount = options.clickCount || 1;
     const timeout = options.timeout || TIMEOUTS.ELEMENT_CLICK;
     const waitStable = options.waitStable !== false; // 默认 true
+    const selector = typeof target === 'string' ? target : '元素';
 
     const doClick = async () => {
         let el;
 
         // 判断输入类型
+        logger.debug('浏览器', `[safeClick] 开始查找: ${selector}`);
         if (typeof target === 'string') {
             // CSS selector
             el = await page.$(target);
@@ -246,30 +248,39 @@ export async function safeClick(page, target, options = {}) {
             el = target;
             if (!el || !el.asElement()) throw new Error(`Element handle invalid`);
         }
+        logger.debug('浏览器', `[safeClick] 已找到元素`);
 
         // 确保元素在可视区域内
+        logger.debug('浏览器', `[safeClick] 滚动到可视区域...`);
         await el.scrollIntoViewIfNeeded().catch(() => { });
 
         // 如果开启了布局稳定等待，等待元素位置稳定
         if (waitStable) {
+            logger.debug('浏览器', `[safeClick] 等待元素稳定...`);
             await waitForElementStable(el);
+            logger.debug('浏览器', `[safeClick] 元素已稳定`);
         }
 
         // 使用 ghost-cursor 点击
         if (page.cursor) {
             const box = await el.boundingBox();
+            logger.debug('浏览器', `[safeClick] boundingBox: ${JSON.stringify(box)}`);
             if (box) {
                 const { x, y } = getHumanClickPoint(box, options.bias || 'random');
+                logger.debug('浏览器', `[safeClick] 移动鼠标到 (${x.toFixed(0)}, ${y.toFixed(0)})...`);
                 await page.cursor.moveTo({ x, y });
+                logger.debug('浏览器', `[safeClick] 执行点击...`);
                 await page.mouse.click(x, y, { clickCount });
                 return;
             }
             // 如果无法获取 box，降级到默认点击
+            logger.debug('浏览器', `[safeClick] boundingBox 为 null，降级到 cursor.click`);
             await page.cursor.click(el);
             return;
         }
 
         // 降级逻辑
+        logger.debug('浏览器', `[safeClick] 无 cursor，使用原生 click`);
         await el.click({ clickCount });
     };
 
@@ -286,7 +297,6 @@ export async function safeClick(page, target, options = {}) {
         ]);
     } catch (err) {
         clearTimeout(timeoutId);
-        const selector = typeof target === 'string' ? target : '元素';
         throw new Error(`点击操作失败 (${selector}): ${err.message}`);
     }
 }
@@ -417,9 +427,28 @@ export async function humanType(page, target, text, options = {}) {
         const fakeCount = Math.floor(random(3, 8));
         const fakeText = text.substring(0, fakeCount);
 
-        // 1. 假装打字几个字符
+        // 1. 假装打字几个字符 (需要处理换行符，避免触发发送)
         for (let i = 0; i < fakeText.length; i++) {
-            await page.keyboard.type(fakeText[i], { delay: random(30, 100) });
+            const char = fakeText[i];
+            const nextChar = fakeText[i + 1];
+
+            // 处理换行符 (避免触发发送)
+            if (char === '\r' && nextChar === '\n') {
+                await page.keyboard.down('Shift');
+                await page.keyboard.press('Enter');
+                await page.keyboard.up('Shift');
+                i++; // 跳过 \n
+                await sleep(30, 100);
+                continue;
+            } else if (char === '\n' || char === '\r') {
+                await page.keyboard.down('Shift');
+                await page.keyboard.press('Enter');
+                await page.keyboard.up('Shift');
+                await sleep(30, 100);
+                continue;
+            }
+
+            await page.keyboard.type(char, { delay: random(30, 100) });
         }
 
         // 2. 停顿思考

@@ -64,17 +64,22 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         // 2. 选择模型
         if (modelId) {
             logger.debug('适配器', `选择模型: ${modelId}`, meta);
-            const modelCombobox = page.locator('#chat-area')
-                .locator('button[role="combobox"][aria-haspopup="dialog"]')
-                .last();
+            // 使用键盘导航展开模型选择框：按两次 Shift+Tab 然后 Enter
+            await page.keyboard.down('Shift');
+            await page.keyboard.press('Tab');
+            await page.keyboard.press('Tab');
+            await page.keyboard.up('Shift');
+            await sleep(100, 200);
+            await page.keyboard.press('Enter');
 
-            await modelCombobox.waitFor({ state: 'visible', timeout: 10000 });
-            await safeClick(page, modelCombobox, { bias: 'button' });
+            // 获取模型配置，优先使用 codeName，否则使用 id
+            const modelConfig = manifest.models.find(m => m.id === modelId);
+            const searchText = modelConfig?.codeName || modelId;
 
-            // 模拟粘贴输入模型 ID
+            // 模拟粘贴输入模型名称
             await page.evaluate((text) => {
                 document.execCommand('insertText', false, text);
-            }, modelId);
+            }, searchText);
 
             // 等待下拉选项出现后再按回车
             try {
@@ -191,41 +196,41 @@ export const manifest = {
 
     // 模型列表
     models: [
-        { id: 'gemini-3-pro-image-preview-2k', codeName: '019abc10-e78d-7932-b725-7f1563ed8a12', imagePolicy: 'optional' },
-        { id: 'gemini-3-pro-image-preview', codeName: '019aa208-5c19-7162-ae3b-0a9ddbb1e16a', imagePolicy: 'optional' },
-        { id: 'hunyuan-image-3.0', codeName: '7766a45c-1b6b-4fb8-9823-2557291e1ddd', imagePolicy: 'forbidden' },
-        { id: 'vidu-q2-image', codeName: '019adb32-afa4-749e-9992-39653b52fe13', imagePolicy: 'optional' },
-        { id: 'mai-image-1', codeName: '1b407d5c-1806-477c-90a5-e5c5a114f3bc', imagePolicy: 'forbidden' },
-        { id: 'imagen-4.0-fast-generate-001', codeName: 'f44fd4f8-af30-480f-8ce2-80b2bdfea55e', imagePolicy: 'forbidden' },
-        { id: 'flux-2-pro', codeName: '019abcf4-5600-7a8b-864d-9b8ab7ab7328', imagePolicy: 'optional' },
-        { id: 'recraft-v3', codeName: 'b88d5814-1d20-49cc-9eb6-e362f5851661', imagePolicy: 'forbidden' },
-        { id: 'flux-2-flex', codeName: '019abed6-d96e-7a2b-bf69-198c28bef281', imagePolicy: 'optional' },
-        { id: 'imagen-3.0-generate-002', codeName: '51ad1d79-61e2-414c-99e3-faeb64bb6b1b', imagePolicy: 'forbidden' },
-        { id: 'photon', codeName: 'e7c9fa2d-6f5d-40eb-8305-0980b11c7cab', imagePolicy: 'forbidden' },
-        { id: 'imagen-4.0-ultra-generate-001', codeName: '019ae6da-6438-7077-9d2d-b311a35645f8', imagePolicy: 'forbidden' },
-        { id: 'flux-2-dev', codeName: '019ae6a0-4773-77d5-8ffb-cc35813e063c', imagePolicy: 'optional' },
-        { id: 'imagen-4.0-generate-001', codeName: '019ae6da-6788-761a-8253-e0bb2bf2e3a9', imagePolicy: 'forbidden' },
-        { id: 'flux-2-max', codeName: '', imagePolicy: 'optional' },
-        { id: 'qwen-image-prompt-extend', codeName: '9fe82ee1-c84f-417f-b0e7-cab4ae4cf3f3', imagePolicy: 'forbidden' },
-        { id: 'qwen-image-edit', codeName: '995cf221-af30-466d-a809-8e0985f83649', imagePolicy: 'required' },
-        { id: 'ideogram-v3-quality', codeName: '73378be5-cdba-49e7-b3d0-027949871aa6', imagePolicy: 'forbidden' },
-        { id: 'hunyuan-image-2.1', codeName: 'a9a26426-5377-4efa-bef9-de71e29ad943', imagePolicy: 'forbidden' },
-        { id: 'qwen-image-2512', codeName: '', imagePolicy: 'forbidden' },
-        { id: 'wan2.5-t2i-preview', codeName: '019a5050-2875-78ed-ae3a-d9a51a438685', imagePolicy: 'forbidden' },
-        { id: 'reve-v1.1', codeName: '', imagePolicy: 'required' },
-        { id: 'chatgpt-image-latest', codeName: '', imagePolicy: 'optional' },
-        { id: 'seedream-4.5', codeName: '019abd43-b052-7eec-aa57-e895e45c9723', imagePolicy: 'optional' },
-        { id: 'gpt-image-1-mini', codeName: '0199c238-f8ee-7f7d-afc1-7e28fcfd21cf', imagePolicy: 'optional' },
-        { id: 'gpt-image-1', codeName: '6e855f13-55d7-4127-8656-9168a9f4dcc0', imagePolicy: 'optional' },
-        { id: 'gemini-2.0-flash-preview-image-generation', codeName: '69bbf7d4-9f44-447e-a868-abc4f7a31810', imagePolicy: 'optional' },
-        { id: 'gemini-2.5-flash-image-preview', codeName: '0199ef2a-583f-7088-b704-b75fd169401d', imagePolicy: 'optional' },
-        { id: 'seedream-3', codeName: 'd8771262-8248-4372-90d5-eb41910db034', imagePolicy: 'forbidden' },
-        { id: 'seedream-4-high-res-fal', codeName: '32974d8d-333c-4d2e-abf3-f258c0ac1310', imagePolicy: 'optional' },
-        { id: 'gpt-image-1.5', codeName: '', imagePolicy: 'optional' },
-        { id: 'flux-1-kontext-pro', codeName: '28a8f330-3554-448c-9f32-2c0a08ec6477', imagePolicy: 'optional' },
-        { id: 'wan2.5-i2i-preview', codeName: '019aeb62-c6ea-788e-88f9-19b1b48325b5', imagePolicy: 'required' },
-        { id: 'flux-1-kontext-dev', codeName: 'eb90ae46-a73a-4f27-be8b-40f090592c9a', imagePolicy: 'optional' },
-        { id: 'lucid-origin', codeName: '5a3b3520-c87d-481f-953c-1364687b6e8f', imagePolicy: 'forbidden' }
+        { id: 'gemini-3-pro-image-preview-2k', imagePolicy: 'optional' },
+        { id: 'gemini-3-pro-image-preview', codeName: 'gemini-3-pro-image-preview (nano-banana-pro)', imagePolicy: 'optional' },
+        { id: 'hunyuan-image-3.0', imagePolicy: 'forbidden' },
+        { id: 'vidu-q2-image', imagePolicy: 'optional' },
+        { id: 'mai-image-1', imagePolicy: 'forbidden' },
+        { id: 'imagen-4.0-fast-generate-001', imagePolicy: 'forbidden' },
+        { id: 'flux-2-pro', imagePolicy: 'optional' },
+        { id: 'recraft-v3', imagePolicy: 'forbidden' },
+        { id: 'flux-2-flex', imagePolicy: 'optional' },
+        { id: 'imagen-3.0-generate-002', imagePolicy: 'forbidden' },
+        { id: 'photon', imagePolicy: 'forbidden' },
+        { id: 'imagen-4.0-ultra-generate-001', imagePolicy: 'forbidden' },
+        { id: 'flux-2-dev', imagePolicy: 'optional' },
+        { id: 'imagen-4.0-generate-001', imagePolicy: 'forbidden' },
+        { id: 'flux-2-max', imagePolicy: 'optional' },
+        { id: 'qwen-image-prompt-extend', imagePolicy: 'forbidden' },
+        { id: 'qwen-image-edit', imagePolicy: 'required' },
+        { id: 'ideogram-v3-quality', imagePolicy: 'forbidden' },
+        { id: 'hunyuan-image-2.1', imagePolicy: 'forbidden' },
+        { id: 'qwen-image-2512', imagePolicy: 'forbidden' },
+        { id: 'wan2.5-t2i-preview', imagePolicy: 'forbidden' },
+        { id: 'reve-v1.1', imagePolicy: 'required' },
+        { id: 'chatgpt-image-latest', imagePolicy: 'optional' },
+        { id: 'seedream-4.5', imagePolicy: 'optional' },
+        { id: 'gpt-image-1-mini', imagePolicy: 'optional' },
+        { id: 'gpt-image-1', imagePolicy: 'optional' },
+        { id: 'gemini-2.0-flash-preview-image-generation', imagePolicy: 'optional' },
+        { id: 'gemini-2.5-flash-image-preview', imagePolicy: 'optional' },
+        { id: 'seedream-3', imagePolicy: 'forbidden' },
+        { id: 'seedream-4-high-res-fal', imagePolicy: 'optional' },
+        { id: 'gpt-image-1.5', imagePolicy: 'optional' },
+        { id: 'flux-1-kontext-pro', imagePolicy: 'optional' },
+        { id: 'wan2.5-i2i-preview', imagePolicy: 'required' },
+        { id: 'flux-1-kontext-dev', imagePolicy: 'optional' },
+        { id: 'lucid-origin', imagePolicy: 'forbidden' }
     ],
 
     // 无需导航处理器
