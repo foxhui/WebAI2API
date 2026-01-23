@@ -51,6 +51,12 @@ browser:
   # 是否启用无头模式
   headless: false
 
+  # 拟人鼠标轨迹模式
+  # - false:  禁用拟人轨迹，使用 Playwright 原生点击（性能最好，但会被自动化检测）
+  # - true:   使用项目优化的 ghost-cursor（更拟人化，如不会点击正中心，但性能稍差）
+  # - "camou": 使用 Camoufox 内置轨迹（性能与拟人化的平衡）
+  humanizeCursor: true
+
   # 站点隔离 (fission.autostart)
   # 开启保持 Firefox 默认开启状态
   # 关闭此项可显著降低内存占用，防止低配服务器崩溃
@@ -64,7 +70,7 @@ browser:
     # 禁用网页动画
     # 作用：移除 transition 和 animation
     # 收益：显著降低 CPU 持续占用
-    # 风险：极低。几乎不影响浏览器指纹
+    # 风险：低。几乎不影响浏览器指纹，但可能导致部分网页布局异常
     animation: false
 
     # 禁用滤镜和阴影
@@ -129,6 +135,7 @@ browser:
 | `path` | string | `""` | Camoufox 可执行文件路径，留空使用默认 |
 | `headless` | boolean | `false` | 是否启用无头模式 |
 | `fission` | boolean | `true` | 是否启用站点隔离 (fission.autostart) |
+| `humanizeCursor` | boolean/string | `true` | 鼠标轨迹模式：`true`, `false`, `"camou"` |
 | `proxy` | object | - | 全局代理配置 |
 | `cssInject` | object | - | CSS 性能优化注入配置 |
 

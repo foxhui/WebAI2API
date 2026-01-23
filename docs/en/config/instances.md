@@ -71,11 +71,21 @@ backend:
 | --- | --- |
 | `lmarena` | LMArena Image Generation |
 | `lmarena_text` | LMArena Text Generation |
-| `gemini_biz` | Gemini Business Image Generation |
+| `gemini_biz` | Gemini Business Image & Video Generation |
 | `gemini_biz_text` | Gemini Business Text Generation |
-| `gemini` | Google Gemini |
+| `gemini` | Google Gemini Image & Video Generation |
+| `gemini_text` | Google Gemini Text Generation |
 | `zai_is` | zAI Image Generation |
-| `nanobananafree_ai` | Nano Banana Free |
+| `zai_is_text` | zAI Text Generation |
+| `nanobananafree_ai` | NanoBananaFree Image Generation |
+| `zenmux_ai_text` | ZenMux Text Generation |
+| `chatgpt` | ChatGPT Image Generation |
+| `chatgpt_text` | ChatGPT Text Generation |
+| `sora` | Sora Video Generation |
+| `deepseek_text` | DeepSeek Text Generation |
+| `doubao` | Doubao Image Generation |
+| `doubao_text` | Doubao Text Generation |
+| `test` | Browser Detection (For Debugging Only) |
 | `merge` | Aggregation Mode (Multiple backends in a single tab) |
 
 ## Model Filter

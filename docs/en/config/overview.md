@@ -55,6 +55,12 @@ browser:
   # Whether to enable headless mode
   headless: false
 
+  # Humanized Mouse Cursor Mode
+  # - false:  Disable humanized cursor, use Playwright native click (Best performance, but easily detected by automation checks)
+  # - true:   Use project-optimized ghost-cursor (More human-like, e.g., avoids clicking exact center, but slightly lower performance)
+  # - "camou": Use Camoufox built-in cursor (Balance between performance and human-like behavior)
+  humanizeCursor: true
+
   # Site Isolation (fission.autostart)
   # Keep enabled for standard Firefox behavior
   # Disabling this can significantly reduce memory usage and prevent crashes on low-end servers
@@ -68,7 +74,7 @@ browser:
     # Disable web animations
     # Effect: Removes transition and animation
     # Benefit: Significantly lowers continuous CPU usage
-    # Risk: Very low. Almost no impact on browser fingerprint
+    # Risk: Very low. Almost no impact on browser fingerprint, but may cause layout issues on some webpages
     animation: false
 
     # Disable filters and shadows
@@ -133,6 +139,7 @@ browser:
 | `path` | string | `""` | Path to Camoufox executable. Leave empty to use default. |
 | `headless` | boolean | `false` | Whether to enable headless mode. |
 | `fission` | boolean | `true` | Whether to enable Site Isolation (fission.autostart). |
+| `humanizeCursor` | boolean/string | `true` | Cursor mode: `true`, `false`, `"camou"`. |
 | `proxy` | object | - | Global proxy configuration. |
 | `cssInject` | object | - | CSS performance injection configuration. |
 

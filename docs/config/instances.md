@@ -67,11 +67,21 @@ backend:
 | --- | --- |
 | `lmarena` | LMArena 图片生成 |
 | `lmarena_text` | LMArena 文本生成 |
-| `gemini_biz` | Gemini Business 图片生成 |
+| `gemini_biz` | Gemini Business 图片、视频生成 |
 | `gemini_biz_text` | Gemini Business 文本生成 |
-| `gemini` | Google Gemini |
+| `gemini` | Google Gemini 图片、视频生成 |
+| `gemini_text` | Google Gemini 文本生成 |
 | `zai_is` | zAI 图片生成 |
-| `nanobananafree_ai` | Nano Banana Free |
+| `zai_is_text` | zAI 文本生成 |
+| `nanobananafree_ai` | NanoBananaFree 图片生成 |
+| `zenmux_ai_text` | ZenMux 文本生成 |
+| `chatgpt` | ChatGPT 图片生成 |
+| `chatgpt_text` | ChatGPT 文本生成 |
+| `sora` | Sora 视频生成 |
+| `deepseek_text` | DeepSeek 文本生成 |
+| `doubao` | 豆包 图片生成 |
+| `doubao_text` | 豆包 文本生成 |
+| `test` | 浏览器检测，仅供调试使用 |
 | `merge` | 聚合模式（单标签多后端） |
 
 ## 模型过滤器 (Model Filter)
