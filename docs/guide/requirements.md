@@ -69,13 +69,13 @@ docker compose version
 
 ```bash
 # Ubuntu/Debian
-sudo apt-get install xvfb x11vnc
+sudo apt-get install xvfb x11vnc libgtk-3-0 libx11-xcb1 libasound2
 
 # CentOS/RHEL
-sudo yum install xorg-x11-server-Xvfb x11vnc
+sudo yum install xorg-x11-server-Xvfb x11vnc gtk3 libX11-xcb alsa-lib
 
 # Arch Linux
-sudo pacman -S xorg-server-xvfb x11vnc
+sudo pacman -S xorg-server-xvfb x11vnc gtk3 libx11 libxcb cairo alsa-lib
 ```
 
 ## 下一步

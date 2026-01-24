@@ -15,7 +15,7 @@ logLevel: info
 # 服务器配置
 server:
   port: 3000
-  auth: sk-your-key
+  auth: sk-change-me-to-your-secure-key
   keepalive:
     mode: "comment"
 

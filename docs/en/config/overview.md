@@ -19,7 +19,7 @@ logLevel: info
 # Server Configuration
 server:
   port: 3000
-  auth: sk-your-key
+  auth: sk-change-me-to-your-secure-key
   keepalive:
     mode: "comment"
 
