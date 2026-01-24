@@ -73,12 +73,18 @@
    ```bash
    # 1. 安装 NPM 依赖
    pnpm install
+
    # 2. 安装浏览器等预编译依赖
    # ⚠️ 该脚本需连接 GitHub 下载资源。若网络受限，请使用代理
    npm run init 
    # 使用代理
    # 直接使用 -proxy 可交互式输入代理配置
    npm run init -- -proxy=http://username:passwd@host:port
+
+   # 3. Linux 依赖安装
+   # 其他发行版请前往文档中心查找或者自行搜索
+   apt install -y xvfb x11vnc libgtk-3-0 libx11-xcb1 libasound2
+   
    ```
 
 2. **启动服务**

@@ -76,12 +76,18 @@ This project supports both **source code execution** and **Docker containerized 
    ```bash
    # 1. Install NPM dependencies
    pnpm install
+
    # 2. Install precompiled dependencies like the browser
    # ⚠️ This script requires connecting to GitHub to download resources. Use a proxy if network access is limited.
    npm run init 
    # Using a proxy
    # Use -proxy to interactively input proxy configuration
    npm run init -- -proxy=http://username:passwd@host:port
+
+   # 3. Linux Dependencies
+   # For other distributions, please check the documentation center or search online.
+   apt install -y xvfb x11vnc libgtk-3-0 libx11-xcb1 libasound2
+
    ```
 
 2. **Start Service**
