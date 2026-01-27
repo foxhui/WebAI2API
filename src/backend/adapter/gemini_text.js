@@ -86,23 +86,20 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 await page.keyboard.press('Enter');
                 await sleep(300, 500);
 
-                // 获取所有 menuitemradio 选项
-                const menuItems = await page.getByRole('menuitemradio').all();
+                // 获取所有 menuitemradio 选项的文本
+                const menuItemsLocator = page.getByRole('menuitemradio');
+                const menuItemsCount = await menuItemsLocator.count();
 
-                if (menuItems.length === 0) {
+                if (menuItemsCount === 0) {
                     logger.warn('适配器', '未找到模型选项，使用默认模型', meta);
                 } else {
                     // 获取所有选项的文本（去除前后空白）
-                    const itemTexts = [];
-                    for (const item of menuItems) {
-                        const text = await item.textContent();
-                        itemTexts.push((text || '').trim());
-                    }
+                    const itemTexts = await menuItemsLocator.allTextContents();
 
-                    logger.debug('适配器', `可用模型选项: [${itemTexts.join('], [')}]`, meta);
+                    logger.debug('适配器', `可用模型选项: [${itemTexts.map(t => t.trim()).join('], [')}]`, meta);
 
                     // 判断是否有 Pro 选项
-                    const hasPro = itemTexts.some(text => text.startsWith('Pro'));
+                    const hasPro = itemTexts.some(text => text.trim().startsWith('Pro'));
 
                     // 确定要选择的目标选项文本前缀
                     let targetPrefix = null;
@@ -127,18 +124,14 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
                     logger.debug('适配器', `目标模型前缀: "${targetPrefix}"`, meta);
 
-                    // 查找并点击对应的选项
-                    let found = false;
-                    for (let i = 0; i < menuItems.length; i++) {
-                        if (itemTexts[i].startsWith(targetPrefix)) {
-                            await safeClick(page, menuItems[i], { bias: 'button' });
-                            logger.info('适配器', `已选择模型: "${itemTexts[i]}"`, meta);
-                            found = true;
-                            break;
-                        }
-                    }
+                    // 使用 locator 直接定位目标选项（避免缓存元素引用导致 detached 错误）
+                    const targetItem = menuItemsLocator.filter({ hasText: new RegExp(`^\\s*${targetPrefix}`) }).first();
 
-                    if (!found) {
+                    if (await targetItem.count() > 0) {
+                        const selectedText = (await targetItem.textContent() || '').trim();
+                        await safeClick(page, targetItem, { bias: 'button' });
+                        logger.info('适配器', `已选择模型: "${selectedText}"`, meta);
+                    } else {
                         logger.warn('适配器', `未找到匹配的模型选项 (${targetPrefix})，使用默认模型`, meta);
                         // 按 Escape 关闭菜单
                         await page.keyboard.press('Escape');

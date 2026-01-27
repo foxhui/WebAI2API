@@ -241,37 +241,50 @@ export async function safeClick(page, target, options = {}) {
         ? baseTimeout + Math.ceil(50000 / cursorSpeed)
         : baseTimeout;
 
-    const doClick = async () => {
-        let el;
-
-        // 判断输入类型
-        logger.debug('浏览器', `[safeClick] 开始查找: ${selector}`);
+    // 元素定位函数（可重复调用以获取新鲜的 ElementHandle）
+    const resolveElement = async () => {
         if (typeof target === 'string') {
             // CSS selector
-            el = await page.$(target);
+            const el = await page.$(target);
             if (!el) throw new Error(`未找到: ${target}`);
+            return el;
         } else if (typeof target.elementHandle === 'function') {
             // Locator (来自 page.getByRole, page.getByText 等)
-            el = await target.elementHandle();
+            const el = await target.elementHandle();
             if (!el) throw new Error(`Locator 未匹配到元素`);
+            return el;
         } else {
             // ElementHandle
-            el = target;
-            if (!el || !el.asElement()) throw new Error(`Element handle invalid`);
+            if (!target || !target.asElement()) throw new Error(`Element handle invalid`);
+            return target;
         }
+    };
+
+    const doClick = async () => {
+        // 1. 首次获取元素（用于滚动和等待稳定）
+        logger.debug('浏览器', `[safeClick] 开始查找: ${selector}`);
+        let el = await resolveElement();
         logger.debug('浏览器', `[safeClick] 已找到元素`);
 
-        // 确保元素在可视区域内
+        // 2. 确保元素在可视区域内
         logger.debug('浏览器', `[safeClick] 滚动到可视区域...`);
         await el.scrollIntoViewIfNeeded().catch(() => { });
 
-        // 如果开启了布局稳定等待，等待元素位置稳定
+        // 3. 如果开启了布局稳定等待，等待元素位置稳定
         if (waitStable) {
             logger.debug('浏览器', `[safeClick] 等待元素稳定...`);
             await waitForElementStable(el);
             logger.debug('浏览器', `[safeClick] 元素已稳定`);
+
+            // 4. 重新获取元素引用（防止等待期间 DOM 变化导致 detached 错误）
+            // 仅对 Locator 类型重新获取，ElementHandle 无法刷新
+            if (typeof target.elementHandle === 'function') {
+                logger.debug('浏览器', `[safeClick] 重新获取元素引用...`);
+                el = await resolveElement();
+            }
         }
-        // 使用自维护 ghost-cursor 拟人鼠标轨迹 (仅当 humanizeCursor=true)
+
+        // 5. 使用自维护 ghost-cursor 拟人鼠标轨迹 (仅当 humanizeCursor=true)
         if (useGhostCursor) {
             const box = await el.boundingBox();
             logger.debug('浏览器', `[safeClick] boundingBox: ${JSON.stringify(box)}`);
@@ -289,7 +302,7 @@ export async function safeClick(page, target, options = {}) {
             return;
         }
 
-        // 使用原生点击 (humanizeCursor=false 或 "camou")
+        // 6. 使用原生点击 (humanizeCursor=false 或 "camou")
         const mode = page?._humanizeCursorMode;
         logger.debug('浏览器', `[safeClick] humanizeCursor=${mode} 使用原生点击`);
         // force: true 跳过可操作性检查（遮挡检测等），避免在复杂页面卡住
