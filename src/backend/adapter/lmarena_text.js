@@ -18,7 +18,7 @@ import {
 import { logger } from '../../utils/logger.js';
 
 // --- 配置常量 ---
-const TARGET_URL = 'https://lmarena.ai/c/new?mode=direct';
+const TARGET_URL = 'https://lmarena.ai/c/new?mode=direct&chat-modality=chat';
 const TARGET_URL_SEARCH = 'https://lmarena.ai/zh/c/new?mode=direct&chat-modality=search';
 
 /**
