@@ -64,12 +64,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             logger.info('适配器', '图片上传完成', meta);
         }
 
-        // 3. 输入提示词
-        logger.info('适配器', '输入提示词...', meta);
-        await safeClick(page, inputLocator, { bias: 'input' });
-        await humanType(page, inputLocator, prompt);
-
-        // 4. 点击 Tools 按钮启用图片/视频生成
+        // 3. 点击 Tools 按钮启用图片/视频生成
         logger.debug('适配器', '点击 Tools 按钮...', meta);
         const toolsBtn = page.getByRole('button', { name: 'Tools' });
         await safeClick(page, toolsBtn, { bias: 'button' });
@@ -95,6 +90,12 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             const createImagesBtn = page.getByRole('menuitemcheckbox', { name: 'Create image' });
             await safeClick(page, createImagesBtn, { bias: 'button' });
         }
+
+        // 4. 输入提示词
+        logger.info('适配器', '输入提示词...', meta);
+        await sleep(300, 500);
+        await safeClick(page, inputLocator, { bias: 'input' });
+        await humanType(page, inputLocator, prompt);
 
         // 6. 先启动 API 监听
         logger.debug('适配器', '启动 API 监听...', meta);

@@ -5,7 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.5.5] - 2026-03-05
+## [3.5.6] - 2026-03-20
+
+### 🐛 Fixed
+- **适配器**
+  - 修复 Gemini 适配器可能会点不到发送按钮的问题
+
+## [3.5.6] - 2026-03-20
+
 ### ✨ Added
 - **豆包**
   - 增加豆包 Pro 模型的支持
