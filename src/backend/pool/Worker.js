@@ -8,7 +8,6 @@ import { logger } from '../../utils/logger.js';
 import { initBrowserBase, createCursor } from '../engine/launcher.js';
 import { registry } from '../registry.js';
 import { tryGotoWithCheck } from '../utils/page.js';
-import { AsyncMutex } from '../../utils/asyncMutex.js';
 
 /**
  * Worker 类 - 封装单个浏览器实例
@@ -41,9 +40,6 @@ export class Worker {
         this._isBrowserOwner = false;  // 是否是浏览器的所有者（负责重启）
         this._browserOwner = null;     // 如果是共享者，指向所有者 Worker
         this._sharedWorkers = [];      // 如果是所有者，保存共享该浏览器的 Worker 列表
-
-        // 浏览器操作互斥锁（同一浏览器实例的 Worker 共享同一把锁）
-        this._browserMutex = new AsyncMutex();
     }
 
     /**
@@ -120,6 +116,7 @@ export class Worker {
         this.browser = sharedBrowser;
         this.page = await sharedBrowser.newPage();
         this.page.authState = { isHandlingAuth: false };
+        this.page._browserMutex = this._browserMutex;
         const humanizeCursorMode = this.globalConfig?.browser?.humanizeCursor;
         this.page._humanizeCursorMode = humanizeCursorMode;
         // true 表示使用项目维护的 ghost-cursor
@@ -482,18 +479,12 @@ export class Worker {
             userDataDir: this.userDataDir
         };
 
-        // 获取浏览器互斥锁（防止同一浏览器实例的多个 Worker 并发操作鼠标）
-        const releaseLock = await this._browserMutex.acquire();
-        logger.debug('工作池', `[${this.name}] 已获取浏览器锁`, meta);
-
         this.busyCount++;
         try {
             // 传递原始 modelId，由适配器自己解析
             return await adapter.generate(subContext, prompt, paths, modelId, meta);
         } finally {
             this.busyCount--;
-            releaseLock();
-            logger.debug('工作池', `[${this.name}] 已释放浏览器锁`, meta);
         }
     }
 

@@ -108,8 +108,6 @@ export class PoolManager {
                     // 建立共享关系：设置所有者引用，并添加到所有者的共享列表
                     worker._browserOwner = existing.ownerWorker;
                     existing.ownerWorker._sharedWorkers.push(worker);
-                    // 共享同一把浏览器互斥锁
-                    worker._browserMutex = existing.ownerWorker._browserMutex;
                 } else {
                     await worker.init();
                     browserMap.set(worker.userDataDir, {

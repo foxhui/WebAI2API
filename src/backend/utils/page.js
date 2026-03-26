@@ -193,7 +193,8 @@ export async function scrollToElement(page, selectorOrLocator, options = {}) {
  * @param {object} [options.meta={}] - 日志元数据
  * @returns {Promise<import('playwright-core').Response>} 响应对象
  */
-export async function waitApiResponse(page, options = {}) {
+export function waitApiResponse(page, options = {}) {
+    const promise = (async () => {
     const {
         urlMatch,
         urlContains,
@@ -352,5 +353,13 @@ export async function waitApiResponse(page, options = {}) {
     } finally {
         cleanup();
     }
+    })();
+
+    // 关键修复：挂载一个空的 catch 处理器
+    // 因为适配器通常是先调用 waitApiResponse 拿到 Promise，然后执行 safeClick，最后再 await
+    // 如果在 safeClick 期间页面关闭/崩溃，此 Promise 会被 reject，触发 Node.js 未捕获异常崩溃
+    promise.catch(() => {});
+
+    return promise;
 }
 

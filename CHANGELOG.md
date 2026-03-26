@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 再次修复豆包适配器无法点击选择模型的问题
   - 修复豆包超时时间跟随配置文件
 
+### 🔄 Changed
+- **浏览器**
+  - 回滚互斥锁机制，不再使用互斥锁，这是一个错误的修复
+
 ## [3.5.9] - 2026-03-25
 
 ### 🐛 Fixed
