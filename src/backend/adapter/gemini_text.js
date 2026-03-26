@@ -15,6 +15,7 @@ import {
     gotoWithCheck,
     waitApiResponse
 } from '../utils/index.js';
+import { withUILock } from '../utils/uiLock.js';
 import { logger } from '../../utils/logger.js';
 
 // --- 配置常量 ---
@@ -30,142 +31,144 @@ const TARGET_URL = 'https://gemini.google.com/app?hl=en';
  * @returns {Promise<{text?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page, config } = context;
-    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
+    const { page, instanceName } = context;
     const inputLocator = page.getByRole('textbox');
     const sendBtnLocator = page.getByRole('button', { name: 'Send message' });
 
     try {
-        logger.info('适配器', '开启新会话...', meta);
-        await gotoWithCheck(page, TARGET_URL);
+        // === UI 交互阶段：需要加锁 ===
+        await withUILock(instanceName, async () => {
+            logger.info('适配器', '开启新会话...', meta);
+            await gotoWithCheck(page, TARGET_URL);
 
-        // 1. 等待输入框加载
-        await waitForInput(page, inputLocator, { click: false });
+            // 1. 等待输入框加载
+            await waitForInput(page, inputLocator, { click: false });
 
-        // 2. 上传图片
-        if (imgPaths && imgPaths.length > 0) {
-            logger.info('适配器', `开始上传 ${imgPaths.length} 张图片...`, meta);
-            logger.debug('适配器', '点击加号按钮...', meta);
-            const uploadMenuBtn = page.getByRole('button', { name: 'Open upload file menu' });
-            await safeClick(page, uploadMenuBtn, { bias: 'button' });
+            // 2. 上传图片
+            if (imgPaths && imgPaths.length > 0) {
+                logger.info('适配器', `开始上传 ${imgPaths.length} 张图片...`, meta);
+                logger.debug('适配器', '点击加号按钮...', meta);
+                const uploadMenuBtn = page.getByRole('button', { name: 'Open upload file menu' });
+                await safeClick(page, uploadMenuBtn, { bias: 'button' });
 
-            const uploadFilesBtn = page.getByRole('menuitem', { name: /Upload files/ });
-            await uploadFilesViaChooser(page, uploadFilesBtn, imgPaths, {
-                uploadValidator: (response) => {
-                    const url = response.url();
-                    return response.status() === 200 &&
-                        url.includes('google.com/upload/') &&
-                        url.includes('upload_id=');
-                }
-            }, meta);
-            logger.info('适配器', '图片上传完成', meta);
-        }
-
-        // 3. 输入提示词
-        logger.info('适配器', '输入提示词...', meta);
-        await safeClick(page, inputLocator, { bias: 'input' });
-        await humanType(page, inputLocator, prompt);
-
-        // 4. 选择模型
-        if (modelId) {
-            try {
-                logger.debug('适配器', `准备选择模型: ${modelId}`, meta);
-
-                // 点击输入框确保焦点
-                await inputLocator.focus();
-                await sleep(300, 500);
-
-                // 按 3 次 Tab 键到达模型选择按钮
-                await page.keyboard.press('Tab');
-                await sleep(100, 200);
-                await page.keyboard.press('Tab');
-                await sleep(100, 200);
-                await page.keyboard.press('Tab');
-                await sleep(100, 200);
-
-                // 按回车打开模型菜单
-                await page.keyboard.press('Enter');
-                await sleep(300, 500);
-
-                // 获取所有 menuitem 选项的文本
-                const menuItemsLocator = page.getByRole('menuitem');
-                const menuItemsCount = await menuItemsLocator.count();
-
-                if (menuItemsCount === 0) {
-                    logger.warn('适配器', '未找到模型选项，使用默认模型', meta);
-                } else {
-                    // 获取所有选项的文本（去除前后空白）
-                    const itemTexts = await menuItemsLocator.allTextContents();
-
-                    logger.debug('适配器', `可用模型选项: [${itemTexts.map(t => t.trim()).join('], [')}]`, meta);
-
-                    // 判断是否有 Pro 选项
-                    const hasPro = itemTexts.some(text => text.trim().startsWith('Pro'));
-
-                    // 确定要选择的目标选项文本前缀
-                    let targetPrefix = null;
-
-                    if (hasPro) {
-                        // 有 Pro 选项的情况
-                        if (modelId === 'gemini-3.1-pro') {
-                            targetPrefix = 'Pro';
-                        } else if (modelId === 'gemini-3.1-flash-thinking') {
-                            targetPrefix = 'Thinking';
-                        } else {
-                            targetPrefix = 'Fast';
-                        }
-                    } else {
-                        // 没有 Pro 选项的情况
-                        if (modelId === 'gemini-3.1-pro' || modelId === 'gemini-3.1-flash-thinking') {
-                            targetPrefix = 'Thinking';
-                        } else {
-                            targetPrefix = 'Fast';
-                        }
+                const uploadFilesBtn = page.getByRole('menuitem', { name: /Upload files/ });
+                await uploadFilesViaChooser(page, uploadFilesBtn, imgPaths, {
+                    uploadValidator: (response) => {
+                        const url = response.url();
+                        return response.status() === 200 &&
+                            url.includes('google.com/upload/') &&
+                            url.includes('upload_id=');
                     }
-
-                    logger.debug('适配器', `目标模型前缀: "${targetPrefix}"`, meta);
-
-                    // 使用 locator 直接定位目标选项（避免缓存元素引用导致 detached 错误）
-                    const targetItem = menuItemsLocator.filter({ hasText: new RegExp(`^\\s*${targetPrefix}`) }).first();
-
-                    if (await targetItem.count() > 0) {
-                        const selectedText = (await targetItem.textContent() || '').trim();
-                        await safeClick(page, targetItem, { bias: 'button' });
-                        logger.info('适配器', `已选择模型: "${selectedText}"`, meta);
-                    } else {
-                        logger.warn('适配器', `未找到匹配的模型选项 (${targetPrefix})，使用默认模型`, meta);
-                        // 按 Escape 关闭菜单
-                        await page.keyboard.press('Escape');
-                    }
-                }
-            } catch (e) {
-                logger.warn('适配器', `模型选择失败: ${e.message}，继续使用默认模型`, meta);
-                // 尝试关闭可能打开的菜单
-                try {
-                    await page.keyboard.press('Escape');
-                } catch { }
+                }, meta);
+                logger.info('适配器', '图片上传完成', meta);
             }
-        }
 
-        // 5. 先启动 API 监听
+            // 3. 输入提示词
+            logger.info('适配器', '输入提示词...', meta);
+            await safeClick(page, inputLocator, { bias: 'input' });
+            await humanType(page, inputLocator, prompt);
+
+            // 4. 选择模型
+            if (modelId) {
+                try {
+                    logger.debug('适配器', `准备选择模型: ${modelId}`, meta);
+
+                    // 点击输入框确保焦点
+                    await inputLocator.focus();
+                    await sleep(300, 500);
+
+                    // 按 3 次 Tab 键到达模型选择按钮
+                    await page.keyboard.press('Tab');
+                    await sleep(100, 200);
+                    await page.keyboard.press('Tab');
+                    await sleep(100, 200);
+                    await page.keyboard.press('Tab');
+                    await sleep(100, 200);
+
+                    // 按回车打开模型菜单
+                    await page.keyboard.press('Enter');
+                    await sleep(300, 500);
+
+                    // 获取所有 menuitemradio 选项的文本
+                    const menuItemsLocator = page.getByRole('menuitemradio');
+                    const menuItemsCount = await menuItemsLocator.count();
+
+                    if (menuItemsCount === 0) {
+                        logger.warn('适配器', '未找到模型选项，使用默认模型', meta);
+                    } else {
+                        // 获取所有选项的文本（去除前后空白）
+                        const itemTexts = await menuItemsLocator.allTextContents();
+
+                        logger.debug('适配器', `可用模型选项: [${itemTexts.map(t => t.trim()).join('], [')}]`, meta);
+
+                        // 判断是否有 Pro 选项
+                        const hasPro = itemTexts.some(text => text.trim().startsWith('Pro'));
+
+                        // 确定要选择的目标选项文本前缀
+                        let targetPrefix = null;
+
+                        if (hasPro) {
+                            // 有 Pro 选项的情况
+                            if (modelId === 'gemini-3-pro' || modelId === 'gemini-exp-1206') {
+                                targetPrefix = 'Pro';
+                            } else if (modelId === 'gemini-3-flash' || modelId === 'gemini-2.0-flash-exp') {
+                                targetPrefix = 'Thinking';
+                            } else {
+                                targetPrefix = 'Fast';
+                            }
+                        } else {
+                            // 没有 Pro 选项的情况
+                            if (modelId === 'gemini-3-pro' || modelId === 'gemini-exp-1206') {
+                                targetPrefix = 'Thinking';
+                            } else {
+                                targetPrefix = 'Fast';
+                            }
+                        }
+
+                        logger.debug('适配器', `目标模型前缀: "${targetPrefix}"`, meta);
+
+                        // 使用 locator 直接定位目标选项（避免缓存元素引用导致 detached 错误）
+                        const targetItem = menuItemsLocator.filter({ hasText: new RegExp(`^\\s*${targetPrefix}`) }).first();
+
+                        if (await targetItem.count() > 0) {
+                            const selectedText = (await targetItem.textContent() || '').trim();
+                            await safeClick(page, targetItem, { bias: 'button' });
+                            logger.info('适配器', `已选择模型: "${selectedText}"`, meta);
+                        } else {
+                            logger.warn('适配器', `未找到匹配的模型选项 (${targetPrefix})，使用默认模型`, meta);
+                            // 按 Escape 关闭菜单
+                            await page.keyboard.press('Escape');
+                        }
+                    }
+                } catch (e) {
+                    logger.warn('适配器', `模型选择失败: ${e.message}，继续使用默认模型`, meta);
+                    // 尝试关闭可能打开的菜单
+                    try {
+                        await page.keyboard.press('Escape');
+                    } catch { }
+                }
+            }
+
+            // 5. 发送提示词（点击后立即释放锁）
+            logger.info('适配器', '发送提示词...', meta);
+            await safeClick(page, sendBtnLocator, { bias: 'button' });
+
+            // 锁在这里释放，其他请求可以开始 UI 交互了
+        }, meta);
+        // === UI 交互阶段结束，锁已释放 ===
+
+        // 6. 等待 API 响应（不需要锁，可以并行）
         logger.debug('适配器', '启动 API 监听...', meta);
-        const apiResponsePromise = waitApiResponse(page, {
-            urlMatch: 'assistant.lamda.BardFrontendService/StreamGenerate',
-            method: 'POST',
-            timeout: waitTimeout,
-            meta
-        });
-
-        // 6. 发送提示词
-        logger.info('适配器', '发送提示词...', meta);
-        await safeClick(page, sendBtnLocator, { bias: 'button' });
-
         logger.info('适配器', '等待生成结果...', meta);
 
-        // 7. 等待 API 响应
         let apiResponse;
         try {
-            apiResponse = await apiResponsePromise;
+            apiResponse = await waitApiResponse(page, {
+                urlMatch: 'assistant.lamda.BardFrontendService/StreamGenerate',
+                method: 'POST',
+                timeout: 120000,
+                meta
+            });
         } catch (e) {
             const pageError = normalizePageError(e, meta);
             if (pageError) return pageError;
@@ -179,7 +182,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             return { error: `API 返回错误: ${httpError.error}` };
         }
 
-        // 6. 解析响应体
+        // 7. 解析响应体
         const bodyBuffer = await apiResponse.body();
         logger.debug('适配器', `收到响应体，字节数: ${bodyBuffer.length}`, meta);
 
@@ -214,9 +217,10 @@ export const manifest = {
     },
 
     models: [
-        { id: 'gemini-3.1-flash', imagePolicy: 'optional', type: 'text' },
-        { id: 'gemini-3.1-flash-thinking', imagePolicy: 'optional', type: 'text' },
-        { id: 'gemini-3.1-pro', imagePolicy: 'optional', type: 'text' }
+        { id: 'gemini-2.0-flash-exp', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-exp-1206', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-3-pro', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-3-flash', imagePolicy: 'optional', type: 'text' }
     ],
 
     navigationHandlers: [],

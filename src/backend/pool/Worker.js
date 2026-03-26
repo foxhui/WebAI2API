@@ -476,7 +476,8 @@ export class Worker {
             page: this.page,
             config: this.globalConfig,
             proxyConfig: this.proxyConfig,
-            userDataDir: this.userDataDir
+            userDataDir: this.userDataDir,
+            instanceName: this.instanceName  // 用于 UI 锁
         };
 
         this.busyCount++;

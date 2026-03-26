@@ -16,6 +16,7 @@ import {
     waitApiResponse,
     useContextDownload
 } from '../utils/index.js';
+import { withUILock } from '../utils/uiLock.js';
 import { logger } from '../../utils/logger.js';
 
 // --- 配置常量 ---
@@ -32,90 +33,92 @@ const TARGET_URL = 'https://gemini.google.com/app?hl=en';
  * @returns {Promise<{image?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page, config } = context;
-    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
+    const { page, instanceName } = context;
     const inputLocator = page.getByRole('textbox');
     const sendBtnLocator = page.getByRole('button', { name: 'Send message' });
 
+    // 检测是否是视频模型
+    const isVideoModel = modelId && modelId.startsWith('veo-');
+
     try {
-        logger.info('适配器', '开启新会话...', meta);
-        await gotoWithCheck(page, TARGET_URL);
+        // === UI 交互阶段：需要加锁 ===
+        await withUILock(instanceName, async () => {
+            logger.info('适配器', '开启新会话...', meta);
+            await gotoWithCheck(page, TARGET_URL);
 
-        // 1. 等待输入框加载
-        await waitForInput(page, inputLocator, { click: false });
+            // 1. 等待输入框加载
+            await waitForInput(page, inputLocator, { click: false });
 
-        // 2. 上传图片
-        if (imgPaths && imgPaths.length > 0) {
-            logger.info('适配器', `开始上传 ${imgPaths.length} 张图片...`, meta);
-            logger.debug('适配器', '点击加号按钮...', meta);
-            const uploadMenuBtn = page.getByRole('button', { name: 'Open upload file menu' });
-            await safeClick(page, uploadMenuBtn, { bias: 'button' });
+            // 2. 上传图片
+            if (imgPaths && imgPaths.length > 0) {
+                logger.info('适配器', `开始上传 ${imgPaths.length} 张图片...`, meta);
+                logger.debug('适配器', '点击加号按钮...', meta);
+                const uploadMenuBtn = page.getByRole('button', { name: 'Open upload file menu' });
+                await safeClick(page, uploadMenuBtn, { bias: 'button' });
 
-            // 使用公共函数上传文件
-            const uploadFilesBtn = page.getByRole('menuitem', { name: /Upload files/ });
-            await uploadFilesViaChooser(page, uploadFilesBtn, imgPaths, {
-                uploadValidator: (response) => {
-                    const url = response.url();
-                    return response.status() === 200 &&
-                        url.includes('google.com/upload/') &&
-                        url.includes('upload_id=');
-                }
-            }, meta);
-            logger.info('适配器', '图片上传完成', meta);
-        }
-
-        // 3. 点击 Tools 按钮启用图片/视频生成
-        logger.debug('适配器', '点击 Tools 按钮...', meta);
-        const toolsBtn = page.getByRole('button', { name: 'Tools' });
-        await safeClick(page, toolsBtn, { bias: 'button' });
-
-        // 检测是否是视频模型
-        const isVideoModel = modelId && modelId.startsWith('veo-');
-
-        // 5. 点击 Create images / Create videos 按钮
-        if (isVideoModel) {
-            logger.debug('适配器', '点击 Create video 按钮...', meta);
-            const createVideosBtn = page.getByRole('menuitemcheckbox', { name: 'Create video' });
-
-            // 检查按钮是否存在（有些账号可能没有视频生成功能）
-            const btnCount = await createVideosBtn.count();
-            if (btnCount === 0) {
-                logger.error('适配器', '未找到 Create videos 按钮，该账号可能不支持视频生成', meta);
-                return { error: '该账号不支持视频生成功能 (未找到 Create video 按钮)' };
+                // 使用公共函数上传文件
+                const uploadFilesBtn = page.getByRole('menuitem', { name: /Upload files/ });
+                await uploadFilesViaChooser(page, uploadFilesBtn, imgPaths, {
+                    uploadValidator: (response) => {
+                        const url = response.url();
+                        return response.status() === 200 &&
+                            url.includes('google.com/upload/') &&
+                            url.includes('upload_id=');
+                    }
+                }, meta);
+                logger.info('适配器', '图片上传完成', meta);
             }
 
-            await safeClick(page, createVideosBtn, { bias: 'button' });
-        } else {
-            logger.debug('适配器', '点击 Create image 按钮...', meta);
-            const createImagesBtn = page.getByRole('menuitemcheckbox', { name: 'Create image' });
-            await safeClick(page, createImagesBtn, { bias: 'button' });
-        }
+            // 3. 输入提示词
+            logger.info('适配器', '输入提示词...', meta);
+            await safeClick(page, inputLocator, { bias: 'input' });
+            await humanType(page, inputLocator, prompt);
 
-        // 4. 输入提示词
-        logger.info('适配器', '输入提示词...', meta);
-        await sleep(300, 500);
-        await safeClick(page, inputLocator, { bias: 'input' });
-        await humanType(page, inputLocator, prompt);
+            // 4. 点击 Tools 按钮启用图片/视频生成
+            logger.debug('适配器', '点击 Tools 按钮...', meta);
+            const toolsBtn = page.getByRole('button', { name: 'Tools' });
+            await safeClick(page, toolsBtn, { bias: 'button' });
 
-        // 6. 先启动 API 监听
+            // 5. 点击 Create images / Create videos 按钮
+            if (isVideoModel) {
+                logger.debug('适配器', '点击 Create video 按钮...', meta);
+                const createVideosBtn = page.getByRole('menuitemcheckbox', { name: 'Create video' });
+
+                // 检查按钮是否存在（有些账号可能没有视频生成功能）
+                const btnCount = await createVideosBtn.count();
+                if (btnCount === 0) {
+                    logger.error('适配器', '未找到 Create videos 按钮，该账号可能不支持视频生成', meta);
+                    throw new Error('该账号不支持视频生成功能 (未找到 Create video 按钮)');
+                }
+
+                await safeClick(page, createVideosBtn, { bias: 'button' });
+            } else {
+                logger.debug('适配器', '点击 Create image 按钮...', meta);
+                const createImagesBtn = page.getByRole('menuitemcheckbox', { name: 'Create image' });
+                await safeClick(page, createImagesBtn, { bias: 'button' });
+            }
+
+            // 6. 发送提示词（点击后立即释放锁）
+            logger.info('适配器', '发送提示词...', meta);
+            await safeClick(page, sendBtnLocator, { bias: 'button' });
+
+            // 锁在这里释放，其他请求可以开始 UI 交互了
+        }, meta);
+        // === UI 交互阶段结束，锁已释放 ===
+
+        // 7. 等待 API 响应（不需要锁，可以并行）
         logger.debug('适配器', '启动 API 监听...', meta);
-        const streamApiResponsePromise = waitApiResponse(page, {
-            urlMatch: 'assistant.lamda.BardFrontendService/StreamGenerate',
-            method: 'POST',
-            timeout: waitTimeout,
-            meta
-        });
-
-        // 7. 发送提示词
-        logger.info('适配器', '发送提示词...', meta);
-        await safeClick(page, sendBtnLocator, { bias: 'button' });
-
         logger.info('适配器', '等待生成结果...', meta);
 
         // 8. 等待 StreamGenerate API
         let streamApiResponse;
         try {
-            streamApiResponse = await streamApiResponsePromise;
+            streamApiResponse = await waitApiResponse(page, {
+                urlMatch: 'assistant.lamda.BardFrontendService/StreamGenerate',
+                method: 'POST',
+                timeout: 120000,
+                meta
+            });
         } catch (e) {
             const pageError = normalizePageError(e, meta);
             if (pageError) return pageError;
@@ -129,7 +132,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             return { error: `API 返回错误: ${httpError.error}` };
         }
 
-        // 8. 等待图片/视频响应
+        // 9. 等待图片/视频响应
         if (isVideoModel) {
             // 视频模式：等待视频下载链接
             logger.info('适配器', '生成请求成功，等待视频...', meta);
@@ -140,7 +143,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                     urlMatch: 'contribution.usercontent.google.com/download',
                     urlContains: 'filename=video.mp4',
                     method: 'GET',
-                    timeout: waitTimeout,
+                    timeout: 180000,  // 视频生成可能更慢
                     meta
                 });
             } catch (e) {
@@ -179,10 +182,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             logger.info('适配器', `找到 ${imageUrls.length} 张图片，开始下载...`, meta);
 
             // 使用封装的下载函数
-            const imgDlCfg = config?.backend?.pool?.failover || {};
-            const result = await useContextDownload(imageUrl, page, {
-                retries: imgDlCfg.imgDlRetry ? (imgDlCfg.imgDlRetryMaxRetries || 2) : 0
-            });
+            const result = await useContextDownload(imageUrl, page);
             if (result.error) {
                 logger.error('适配器', result.error, meta);
                 return result;

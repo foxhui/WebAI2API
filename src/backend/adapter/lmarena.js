@@ -16,6 +16,7 @@ import {
     gotoWithCheck,
     useContextDownload
 } from '../utils/index.js';
+import { withUILock } from '../utils/uiLock.js';
 import { logger } from '../../utils/logger.js';
 
 // --- 配置常量 ---
@@ -51,89 +52,88 @@ function extractImage(text) {
  * @returns {Promise<{image?: string, text?: string, error?: string}>} 生成结果
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page, config } = context;
-    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
+    const { page, config, instanceName } = context;
     const textareaSelector = 'textarea';
 
     try {
-        logger.info('适配器', '开启新会话...', meta);
-        await gotoWithCheck(page, TARGET_URL);
+        // === UI 交互阶段：需要加锁 ===
+        await withUILock(instanceName, async () => {
+            logger.info('适配器', '开启新会话...', meta);
+            await gotoWithCheck(page, TARGET_URL);
 
-        // 1. 等待输入框加载
-        await waitForInput(page, textareaSelector, { click: true });
+            // 1. 等待输入框加载
+            await waitForInput(page, textareaSelector, { click: true });
 
-        // 2. 选择模型
-        if (modelId) {
-            logger.debug('适配器', `选择模型: ${modelId}`, meta);
-            // 使用键盘导航展开模型选择框：按两次 Shift+Tab 然后 Enter
-            await page.keyboard.down('Shift');
-            await page.keyboard.press('Tab');
-            await page.keyboard.press('Tab');
-            await page.keyboard.up('Shift');
-            await sleep(100, 200);
-            await page.keyboard.press('Enter');
+            // 2. 选择模型
+            if (modelId) {
+                logger.debug('适配器', `选择模型: ${modelId}`, meta);
+                // 使用键盘导航展开模型选择框：按两次 Shift+Tab 然后 Enter
+                await page.keyboard.down('Shift');
+                await page.keyboard.press('Tab');
+                await page.keyboard.press('Tab');
+                await page.keyboard.up('Shift');
+                await sleep(100, 200);
+                await page.keyboard.press('Enter');
 
-            // 获取模型配置，优先使用 codeName，否则使用 id
-            const modelConfig = manifest.models.find(m => m.id === modelId);
-            const searchText = modelConfig?.codeName || modelId;
+                // 获取模型配置，优先使用 codeName，否则使用 id
+                const modelConfig = manifest.models.find(m => m.id === modelId);
+                const searchText = modelConfig?.codeName || modelId;
 
-            // 模拟粘贴输入模型名称
-            await page.evaluate((text) => {
-                document.execCommand('insertText', false, text);
-            }, searchText);
+                // 模拟粘贴输入模型名称
+                await page.evaluate((text) => {
+                    document.execCommand('insertText', false, text);
+                }, searchText);
 
-            // 等待过滤完成：第一个选项包含目标模型的主 ID
-            // searchText 可能是 codeName（含括号说明），但过滤后的选项应该包含 modelId
-            try {
-                await page.waitForFunction(
-                    (targetId) => {
-                        const firstOption = document.querySelector('[role="option"]');
-                        return firstOption && firstOption.textContent?.includes(targetId);
-                    },
-                    modelId,
-                    { timeout: 5000 }
-                );
-            } catch {
-                // 超时也继续，可能列表结构不同
-                logger.debug('适配器', `等待模型选项过滤超时，继续执行`, meta);
+                // 等待过滤完成：第一个选项包含目标模型的主 ID
+                try {
+                    await page.waitForFunction(
+                        (targetId) => {
+                            const firstOption = document.querySelector('[role="option"]');
+                            return firstOption && firstOption.textContent?.includes(targetId);
+                        },
+                        modelId,
+                        { timeout: 5000 }
+                    );
+                } catch {
+                    logger.debug('适配器', `等待模型选项过滤超时，继续执行`, meta);
+                }
+                await sleep(300, 500);
+                await page.keyboard.press('Enter');
             }
-            await sleep(300, 500);
-            await page.keyboard.press('Enter');
-        }
 
-        // 3. 上传图片
-        if (imgPaths && imgPaths.length > 0) {
-            logger.info('适配器', `开始上传 ${imgPaths.length} 张图片`, meta);
-            await pasteImages(page, textareaSelector, imgPaths, {}, meta);
-            logger.info('适配器', '图片上传完成', meta);
-        }
+            // 3. 上传图片
+            if (imgPaths && imgPaths.length > 0) {
+                logger.info('适配器', `开始上传 ${imgPaths.length} 张图片`, meta);
+                await pasteImages(page, textareaSelector, imgPaths, {}, meta);
+                logger.info('适配器', '图片上传完成', meta);
+            }
 
-        // 4. 输入提示词
-        await safeClick(page, textareaSelector, { bias: 'input' });
-        logger.info('适配器', '输入提示词...', meta);
-        await humanType(page, textareaSelector, prompt);
+            // 4. 输入提示词
+            await safeClick(page, textareaSelector, { bias: 'input' });
+            logger.info('适配器', '输入提示词...', meta);
+            await humanType(page, textareaSelector, prompt);
 
-        // 5. 先启动 API 监听
+            // 5. 发送提示词（点击后立即释放锁）
+            logger.info('适配器', '发送提示词...', meta);
+            await safeClick(page, 'button[type="submit"]', { bias: 'button' });
+
+            // 锁在这里释放，其他请求可以开始 UI 交互了
+        }, meta);
+        // === UI 交互阶段结束，锁已释放 ===
+
+        // 6. 等待 API 响应（不需要锁，可以并行）
         logger.debug('适配器', '启动 API 监听...', meta);
-        const responsePromise = waitApiResponse(page, {
-            urlMatch: '/nextjs-api/stream',
-            method: 'POST',
-            timeout: waitTimeout,
-            meta
-        });
-
-        // 6. 发送提示词
-        logger.info('适配器', '发送提示词...', meta);
-        await safeClick(page, 'button[type="submit"]', { bias: 'button' });
-
         logger.info('适配器', '等待生成结果...', meta);
 
-        // 7. 等待 API 响应
         let response;
         try {
-            response = await responsePromise;
+            response = await waitApiResponse(page, {
+                urlMatch: '/nextjs-api/stream',
+                method: 'POST',
+                timeout: 120000,
+                meta
+            });
         } catch (e) {
-            // 使用公共错误处理
             const pageError = normalizePageError(e, meta);
             if (pageError) return pageError;
             throw e;
@@ -160,10 +160,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             }
 
             logger.info('适配器', '已获取结果，正在下载图片...', meta);
-            const imgDlCfg = config?.backend?.pool?.failover || {};
-            const result = await useContextDownload(img, page, {
-                retries: imgDlCfg.imgDlRetry ? (imgDlCfg.imgDlRetryMaxRetries || 2) : 0
-            });
+            const result = await useContextDownload(img, page);
             if (result.image) {
                 logger.info('适配器', '已下载图片，任务完成', meta);
             }

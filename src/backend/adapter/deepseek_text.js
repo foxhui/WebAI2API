@@ -12,6 +12,7 @@ import {
     waitForInput,
     gotoWithCheck
 } from '../utils/index.js';
+import { withUILock } from '../utils/uiLock.js';
 import { logger } from '../../utils/logger.js';
 
 // --- 配置常量 ---
@@ -82,86 +83,74 @@ async function configureModel(page, modelConfig, meta = {}) {
  * @returns {Promise<{text?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page, config } = context;
-    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
+    const { page, instanceName } = context;
+
+    // 用于响应监听
+    let textContent = '';
+    let isComplete = false;
+    let isCollecting = false;  // 当前最后一个 fragment 是否为 RESPONSE 类型
+    let isResolved = false;
+    let resultPromise = null;
+    let handleResponse = null;
+    let timeoutId = null;
 
     try {
-        logger.info('适配器', '开启新会话...', meta);
-        await gotoWithCheck(page, TARGET_URL);
+        // === UI 交互阶段：需要加锁 ===
+        await withUILock(instanceName, async () => {
+            logger.info('适配器', '开启新会话...', meta);
+            await gotoWithCheck(page, TARGET_URL);
 
-        // 1. 等待输入框加载
-        await waitForInput(page, INPUT_SELECTOR, { click: false });
+            // 1. 等待输入框加载
+            await waitForInput(page, INPUT_SELECTOR, { click: false });
 
-        // 2. 配置模型功能 (thinking / search)
-        const modelConfig = manifest.models.find(m => m.id === modelId);
-        if (modelConfig) {
-            await configureModel(page, modelConfig, meta);
-        }
+            // 2. 配置模型功能 (thinking / search)
+            const modelConfig = manifest.models.find(m => m.id === modelId);
+            if (modelConfig) {
+                await configureModel(page, modelConfig, meta);
+            }
 
-        // 3. 输入提示词
-        logger.info('适配器', '输入提示词...', meta);
-        await safeClick(page, INPUT_SELECTOR, { bias: 'input' });
-        await humanType(page, INPUT_SELECTOR, prompt);
-        await sleep(300, 500);
+            // 3. 输入提示词
+            logger.info('适配器', '输入提示词...', meta);
+            await safeClick(page, INPUT_SELECTOR, { bias: 'input' });
+            await humanType(page, INPUT_SELECTOR, prompt);
+            await sleep(300, 500);
 
-        // 4. 先启动 API 监听
-        logger.debug('适配器', '启动 API 监听...', meta);
+            // 4. 设置 SSE 监听（在发送前设置）
+            logger.debug('适配器', '启动 SSE 监听...', meta);
 
-        let textContent = '';
-        let isComplete = false;
-        let isCollecting = false;  // 当前最后一个 fragment 是否为 RESPONSE 类型
+            resultPromise = new Promise((resolve, reject) => {
+                timeoutId = setTimeout(() => {
+                    if (!isResolved) {
+                        isResolved = true;
+                        reject(new Error('API_TIMEOUT: 响应超时 (120秒)'));
+                    }
+                }, 120000);
 
-        const responsePromise = page.waitForResponse(async (response) => {
-            const url = response.url();
-            if (!url.includes('chat/completion')) return false;
-            if (response.request().method() !== 'POST') return false;
-            if (response.status() !== 200) return false;
-
-            try {
-                const body = await response.text();
-                const lines = body.split('\n');
-
-                for (const line of lines) {
-                    // 跳过事件行和空行
-                    if (line.startsWith('event:') || !line.startsWith('data:')) continue;
-
-                    const dataStr = line.slice(5).trim();
-                    if (!dataStr || dataStr === '{}') continue;
-
+                handleResponse = async (response) => {
                     try {
-                        const data = JSON.parse(dataStr);
+                        const url = response.url();
+                        if (!url.includes('chat/completion')) return;
+                        if (response.request().method() !== 'POST') return;
+                        if (response.status() !== 200) return;
 
-                        // --- 处理 fragment 列表变更，更新 isCollecting 状态 ---
+                        const body = await response.text();
+                        const lines = body.split('\n');
 
-                        // 初始响应中可能已有 fragments (如 SEARCH / RESPONSE)
-                        if (data.v?.response?.fragments && Array.isArray(data.v.response.fragments)) {
-                            for (const fragment of data.v.response.fragments) {
-                                if (fragment.type === 'RESPONSE') {
-                                    isCollecting = true;
-                                    if (fragment.content) textContent += fragment.content;
-                                } else {
-                                    isCollecting = false;
-                                }
-                            }
-                        }
+                        for (const line of lines) {
+                            // 跳过事件行和空行
+                            if (line.startsWith('event:') || !line.startsWith('data:')) continue;
 
-                        // fragments APPEND - 新增 fragment (非 BATCH)
-                        if (data.p === 'response/fragments' && data.o === 'APPEND' && Array.isArray(data.v)) {
-                            for (const fragment of data.v) {
-                                if (fragment.type === 'RESPONSE') {
-                                    isCollecting = true;
-                                    if (fragment.content) textContent += fragment.content;
-                                } else {
-                                    isCollecting = false;
-                                }
-                            }
-                        }
+                            const dataStr = line.slice(5).trim();
+                            if (!dataStr || dataStr === '{}') continue;
 
-                        // BATCH 操作中的 fragments
-                        if (data.o === 'BATCH' && data.p === 'response' && Array.isArray(data.v)) {
-                            for (const item of data.v) {
-                                if (item.p === 'fragments' && item.o === 'APPEND' && Array.isArray(item.v)) {
-                                    for (const fragment of item.v) {
+                            try {
+                                const data = JSON.parse(dataStr);
+
+                                // --- 处理 fragment 列表变更，更新 isCollecting 状态 ---
+
+                                // 初始响应中可能已有 fragments (如 SEARCH / RESPONSE)
+                                if (data.v?.response?.fragments && Array.isArray(data.v.response.fragments)) {
+                                    for (const fragment of data.v.response.fragments) {
                                         if (fragment.type === 'RESPONSE') {
                                             isCollecting = true;
                                             if (fragment.content) textContent += fragment.content;
@@ -170,61 +159,93 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                                         }
                                     }
                                 }
-                                // 检查是否完成 (quasi_status 或 status)
-                                if ((item.p === 'status' || item.p === 'quasi_status') && item.v === 'FINISHED') {
+
+                                // fragments APPEND - 新增 fragment (非 BATCH)
+                                if (data.p === 'response/fragments' && data.o === 'APPEND' && Array.isArray(data.v)) {
+                                    for (const fragment of data.v) {
+                                        if (fragment.type === 'RESPONSE') {
+                                            isCollecting = true;
+                                            if (fragment.content) textContent += fragment.content;
+                                        } else {
+                                            isCollecting = false;
+                                        }
+                                    }
+                                }
+
+                                // BATCH 操作中的 fragments
+                                if (data.o === 'BATCH' && data.p === 'response' && Array.isArray(data.v)) {
+                                    for (const item of data.v) {
+                                        if (item.p === 'fragments' && item.o === 'APPEND' && Array.isArray(item.v)) {
+                                            for (const fragment of item.v) {
+                                                if (fragment.type === 'RESPONSE') {
+                                                    isCollecting = true;
+                                                    if (fragment.content) textContent += fragment.content;
+                                                } else {
+                                                    isCollecting = false;
+                                                }
+                                            }
+                                        }
+                                        // 检查是否完成 (quasi_status 或 status)
+                                        if ((item.p === 'status' || item.p === 'quasi_status') && item.v === 'FINISHED') {
+                                            isComplete = true;
+                                        }
+                                    }
+                                }
+
+                                // --- 处理文本内容追加 ---
+
+                                // 带路径的 content 操作 (如 response/fragments/-1/content)
+                                if (data.p && typeof data.v === 'string') {
+                                    const match = data.p.match(/response\/fragments\/(-?\d+)\/content/);
+                                    if (match && isCollecting) {
+                                        textContent += data.v;
+                                    }
+                                }
+
+                                // 纯文本追加 (只有 v 字符串，没有 p 和 o)
+                                if (data.v && typeof data.v === 'string' && !data.p && !data.o) {
+                                    if (isCollecting) {
+                                        textContent += data.v;
+                                    }
+                                }
+
+                                // --- 检查完成信号 ---
+
+                                // 独立的 status SET 操作
+                                if (data.p === 'response/status' && data.o === 'SET' && data.v === 'FINISHED') {
                                     isComplete = true;
                                 }
+                            } catch {
+                                // 忽略解析错误
                             }
                         }
 
-                        // --- 处理文本内容追加 ---
-
-                        // 带路径的 content 操作 (如 response/fragments/-1/content)
-                        if (data.p && typeof data.v === 'string') {
-                            const match = data.p.match(/response\/fragments\/(-?\d+)\/content/);
-                            if (match && isCollecting) {
-                                textContent += data.v;
-                            }
+                        // 完成时 resolve
+                        if (isComplete && !isResolved) {
+                            isResolved = true;
+                            clearTimeout(timeoutId);
+                            page.off('response', handleResponse);
+                            resolve();
                         }
-
-                        // 纯文本追加 (只有 v 字符串，没有 p 和 o)
-                        if (data.v && typeof data.v === 'string' && !data.p && !data.o) {
-                            if (isCollecting) {
-                                textContent += data.v;
-                            }
-                        }
-
-                        // --- 检查完成信号 ---
-
-                        // 独立的 status SET 操作
-                        if (data.p === 'response/status' && data.o === 'SET' && data.v === 'FINISHED') {
-                            isComplete = true;
-                        }
-                    } catch {
+                    } catch (e) {
                         // 忽略解析错误
                     }
-                }
+                };
 
-                return isComplete;
-            } catch {
-                return false;
-            }
-        }, { timeout: waitTimeout });
+                page.on('response', handleResponse);
+            });
 
-        // 5. 发送提示词
-        logger.debug('适配器', '发送提示词...', meta);
-        await page.keyboard.press('Enter');
+            // 5. 发送提示词
+            logger.debug('适配器', '发送提示词...', meta);
+            await page.keyboard.press('Enter');
 
+            // 锁在这里释放，其他请求可以开始 UI 交互了
+        }, meta);
+        // === UI 交互阶段结束，锁已释放 ===
+
+        // 6. 等待响应（不需要锁，可以并行）
         logger.info('适配器', '等待生成结果...', meta);
-
-        // 6. 等待 API 响应
-        try {
-            await responsePromise;
-        } catch (e) {
-            const pageError = normalizePageError(e, meta);
-            if (pageError) return pageError;
-            throw e;
-        }
+        await resultPromise;
 
         if (!textContent || textContent.trim() === '') {
             logger.warn('适配器', '回复内容为空', meta);

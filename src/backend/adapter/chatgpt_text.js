@@ -13,6 +13,7 @@ import {
     waitForInput,
     gotoWithCheck
 } from '../utils/index.js';
+import { withUILock } from '../utils/uiLock.js';
 import { logger } from '../../utils/logger.js';
 
 // --- 配置常量 ---
@@ -80,72 +81,79 @@ async function selectModel(page, codeName, meta = {}) {
  * @returns {Promise<{text?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page, config } = context;
+    const { page, instanceName, config } = context;
     const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
     const sendBtnLocator = page.getByRole('button', { name: 'Send prompt' });
 
     try {
-        logger.info('适配器', '开启新会话...', meta);
-        await gotoWithCheck(page, TARGET_URL);
+        // === UI 交互阶段：需要加锁 ===
+        await withUILock(instanceName, async () => {
+            logger.info('适配器', '开启新会话...', meta);
+            await gotoWithCheck(page, TARGET_URL);
 
-        // 1. 等待输入框加载
-        await waitForInput(page, INPUT_SELECTOR, { click: false });
+            // 1. 等待输入框加载
+            await waitForInput(page, INPUT_SELECTOR, { click: false });
 
-        // 2. 选择模型
-        const modelConfig = manifest.models.find(m => m.id === modelId);
-        const targetModel = modelConfig?.codeName || modelId;
-        if (targetModel) {
-            await selectModel(page, targetModel, meta);
-        }
+            // 2. 选择模型
+            const modelConfig = manifest.models.find(m => m.id === modelId);
+            const targetModel = modelConfig?.codeName || modelId;
+            if (targetModel) {
+                await selectModel(page, targetModel, meta);
+            }
 
-        // 3. 上传图片 (双击 Add files and more 按钮)
-        if (imgPaths && imgPaths.length > 0) {
-            logger.info('适配器', `开始上传 ${imgPaths.length} 张图片...`, meta);
-            const expectedUploads = imgPaths.length;
-            let uploadedCount = 0;
-            let processedCount = 0;
+            // 3. 上传图片 (双击 Add files and more 按钮)
+            if (imgPaths && imgPaths.length > 0) {
+                logger.info('适配器', `开始上传 ${imgPaths.length} 张图片...`, meta);
+                const expectedUploads = imgPaths.length;
+                let uploadedCount = 0;
+                let processedCount = 0;
 
-            logger.debug('适配器', '双击添加文件按钮...', meta);
-            const addFilesBtn = page.getByRole('button', { name: 'Add files and more' });
+                logger.debug('适配器', '双击添加文件按钮...', meta);
+                const addFilesBtn = page.getByRole('button', { name: 'Add files and more' });
 
-            await uploadFilesViaChooser(page, addFilesBtn, imgPaths, {
-                clickAction: 'dblclick',  // 使用双击
-                uploadValidator: (response) => {
-                    const url = response.url();
-                    if (response.status() === 200) {
-                        // 上传请求
-                        if (url.includes('backend-api/files') && !url.includes('process_upload_stream')) {
-                            uploadedCount++;
-                            logger.debug('适配器', `图片上传进度: ${uploadedCount}/${expectedUploads}`, meta);
-                            return false;
-                        }
-                        // 处理完成请求
-                        if (url.includes('backend-api/files/process_upload_stream')) {
-                            processedCount++;
-                            logger.info('适配器', `图片处理进度: ${processedCount}/${expectedUploads}`, meta);
+                await uploadFilesViaChooser(page, addFilesBtn, imgPaths, {
+                    clickAction: 'dblclick',  // 使用双击
+                    uploadValidator: (response) => {
+                        const url = response.url();
+                        if (response.status() === 200) {
+                            // 上传请求
+                            if (url.includes('backend-api/files') && !url.includes('process_upload_stream')) {
+                                uploadedCount++;
+                                logger.debug('适配器', `图片上传进度: ${uploadedCount}/${expectedUploads}`, meta);
+                                return false;
+                            }
+                            // 处理完成请求
+                            if (url.includes('backend-api/files/process_upload_stream')) {
+                                processedCount++;
+                                logger.info('适配器', `图片处理进度: ${processedCount}/${expectedUploads}`, meta);
 
-                            if (processedCount >= expectedUploads) {
-                                return true;
+                                if (processedCount >= expectedUploads) {
+                                    return true;
+                                }
                             }
                         }
+                        return false;
                     }
-                    return false;
-                }
-            }, meta);
-        }
+                }, meta);
+            }
 
-        // 3. 输入提示词
-        logger.info('适配器', '输入提示词...', meta);
-        await safeClick(page, INPUT_SELECTOR, { bias: 'input' });
-        await humanType(page, INPUT_SELECTOR, prompt);
+            // 4. 输入提示词
+            logger.info('适配器', '输入提示词...', meta);
+            await safeClick(page, INPUT_SELECTOR, { bias: 'input' });
+            await humanType(page, INPUT_SELECTOR, prompt);
 
-        // 5. 发送提示词
-        logger.debug('适配器', '发送提示词...', meta);
-        await safeClick(page, sendBtnLocator, { bias: 'button' });
+            // 5. 发送提示词（点击后立即释放锁）
+            logger.debug('适配器', '发送提示词...', meta);
+            await safeClick(page, sendBtnLocator, { bias: 'button' });
 
+            // 锁在这里释放，其他请求可以开始 UI 交互了
+        }, meta);
+        // === UI 交互阶段结束，锁已释放 ===
+
+        // 6. 等待 API 响应（不需要锁，可以并行）
         logger.info('适配器', '等待生成结果...', meta);
 
-        // 6. 监听 conversation API 的 SSE 流，解析文本内容
+        // 监听 conversation API 的 SSE 流，解析文本内容
         logger.info('适配器', '监听 SSE 流获取文本...', meta);
 
         let textContent = '';

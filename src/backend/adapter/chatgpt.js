@@ -15,6 +15,7 @@ import {
     waitApiResponse,
     useContextDownload
 } from '../utils/index.js';
+import { withUILock } from '../utils/uiLock.js';
 import { logger } from '../../utils/logger.js';
 
 // --- 配置常量 ---
@@ -31,71 +32,76 @@ const INPUT_SELECTOR = '.ProseMirror';
  * @returns {Promise<{image?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page, config } = context;
-    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
+    const { page, instanceName } = context;
     const sendBtnLocator = page.getByRole('button', { name: 'Send prompt' });
 
     try {
-        logger.info('适配器', '开启新会话...', meta);
-        await gotoWithCheck(page, TARGET_URL);
+        // === UI 交互阶段：需要加锁 ===
+        await withUILock(instanceName, async () => {
+            logger.info('适配器', '开启新会话...', meta);
+            await gotoWithCheck(page, TARGET_URL);
 
-        // 1. 等待输入框加载
-        await waitForInput(page, INPUT_SELECTOR, { click: false });
+            // 1. 等待输入框加载
+            await waitForInput(page, INPUT_SELECTOR, { click: false });
 
-        // 2. 上传图片
-        if (imgPaths && imgPaths.length > 0) {
+            // 2. 上传图片
+            if (imgPaths && imgPaths.length > 0) {
 
-            const expectedUploads = imgPaths.length;
-            let uploadedCount = 0;
-            let processedCount = 0;
-            logger.info('适配器', `开始上传 ${expectedUploads} 张图片...`, meta);
-            logger.debug('适配器', '点击添加文件按钮...', meta);
-            const addFilesBtn = page.getByRole('button', { name: 'Add files and more' });
+                const expectedUploads = imgPaths.length;
+                let uploadedCount = 0;
+                let processedCount = 0;
+                logger.info('适配器', `开始上传 ${expectedUploads} 张图片...`, meta);
+                logger.debug('适配器', '点击添加文件按钮...', meta);
+                const addFilesBtn = page.getByRole('button', { name: 'Add files and more' });
 
-            await uploadFilesViaChooser(page, addFilesBtn, imgPaths, {
-                uploadValidator: (response) => {
-                    const url = response.url();
-                    if (response.status() === 200) {
-                        // 上传请求
-                        if (url.includes('backend-api/files') && !url.includes('process_upload_stream')) {
-                            uploadedCount++;
-                            logger.debug('适配器', `图片上传进度: ${uploadedCount}/${expectedUploads}`, meta);
-                            return false;
-                        }
-                        // 处理完成请求
-                        if (url.includes('backend-api/files/process_upload_stream')) {
-                            processedCount++;
-                            logger.info('适配器', `图片处理进度: ${processedCount}/${expectedUploads}`, meta);
+                await uploadFilesViaChooser(page, addFilesBtn, imgPaths, {
+                    uploadValidator: (response) => {
+                        const url = response.url();
+                        if (response.status() === 200) {
+                            // 上传请求
+                            if (url.includes('backend-api/files') && !url.includes('process_upload_stream')) {
+                                uploadedCount++;
+                                logger.debug('适配器', `图片上传进度: ${uploadedCount}/${expectedUploads}`, meta);
+                                return false;
+                            }
+                            // 处理完成请求
+                            if (url.includes('backend-api/files/process_upload_stream')) {
+                                processedCount++;
+                                logger.info('适配器', `图片处理进度: ${processedCount}/${expectedUploads}`, meta);
 
-                            if (processedCount >= expectedUploads) {
-                                return true;
+                                if (processedCount >= expectedUploads) {
+                                    return true;
+                                }
                             }
                         }
+                        return false;
                     }
-                    return false;
-                }
-            }, meta);
-            logger.info('适配器', '图片上传完成', meta);
-        }
+                }, meta);
+                logger.info('适配器', '图片上传完成', meta);
+            }
 
-        // 3. 输入提示词
-        logger.info('适配器', '输入提示词...', meta);
-        await safeClick(page, INPUT_SELECTOR, { bias: 'input' });
-        await humanType(page, INPUT_SELECTOR, prompt);
+            // 3. 输入提示词
+            logger.info('适配器', '输入提示词...', meta);
+            await safeClick(page, INPUT_SELECTOR, { bias: 'input' });
+            await humanType(page, INPUT_SELECTOR, prompt);
 
-        // 4. 发送提示词
-        logger.debug('适配器', '发送提示词...', meta);
-        await safeClick(page, sendBtnLocator, { bias: 'button' });
+            // 4. 发送提示词（点击后立即释放锁）
+            logger.debug('适配器', '发送提示词...', meta);
+            await safeClick(page, sendBtnLocator, { bias: 'button' });
 
+            // 锁在这里释放，其他请求可以开始 UI 交互了
+        }, meta);
+        // === UI 交互阶段结束，锁已释放 ===
+
+        // 5. 等待 API 响应（不需要锁，可以并行）
         logger.info('适配器', '等待生成结果...', meta);
 
-        // 5. 等待 conversation API 返回
         let conversationResponse;
         try {
             conversationResponse = await waitApiResponse(page, {
                 urlMatch: 'backend-api/f/conversation',
                 method: 'POST',
-                timeout: waitTimeout,  // 图片生成可能较慢
+                timeout: 120000,  // 图片生成可能较慢
                 meta
             });
         } catch (e) {
@@ -145,7 +151,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 } catch {
                     return false;
                 }
-            }, { timeout: waitTimeout });
+            }, { timeout: 120000 });
         } catch (e) {
             const pageError = normalizePageError(e, meta);
             if (pageError) return pageError;
@@ -160,10 +166,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         logger.info('适配器', '正在下载图片...', meta);
 
         // 7. 使用 useContextDownload 下载图片
-        const imgDlCfg = config?.backend?.pool?.failover || {};
-        const result = await useContextDownload(downloadUrl, page, {
-            retries: imgDlCfg.imgDlRetry ? (imgDlCfg.imgDlRetryMaxRetries || 2) : 0
-        });
+        const result = await useContextDownload(downloadUrl, page);
         if (result.error) {
             logger.error('适配器', result.error, meta);
             return result;
