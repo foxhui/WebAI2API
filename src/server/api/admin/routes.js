@@ -36,6 +36,18 @@ import {
 import { registry } from '../../../backend/registry.js';
 import { sendRestartSignal, sendStopSignal, isUnderSupervisor, getVncInfo } from '../../../utils/ipc.js';
 import { getTodayStats, getStatsRange, clearStatsRange } from '../../../utils/stats.js';
+import {
+    getList as getHistoryList,
+    getDetail as getHistoryDetail,
+    deleteRecords as deleteHistoryRecords,
+    deleteByDateRange as deleteHistoryByDateRange,
+    retryMediaDownload,
+    getStats as getHistoryStats,
+    getModelList as getHistoryModelList,
+    getMediaDir
+} from '../../../utils/history.js';
+import path from 'path';
+import fs from 'fs/promises';
 
 /**
  * 读取请求体
@@ -455,6 +467,143 @@ export function createAdminRouter(context) {
                     processingTasks: detailedStatus.processing,
                     waitingTasks: detailedStatus.waiting
                 });
+                return;
+            }
+
+            // ==================== 请求历史 ====================
+
+            // GET /admin/history - 历史记录列表
+            if (method === 'GET' && pathname === '/history') {
+                const url = new URL(req.url, `http://${req.headers.host}`);
+                const page = parseInt(url.searchParams.get('page') || '1', 10);
+                const pageSize = parseInt(url.searchParams.get('pageSize') || '20', 10);
+                const filters = {
+                    status: url.searchParams.get('status') || null,
+                    modelId: url.searchParams.get('model') || null,
+                    search: url.searchParams.get('search') || null,
+                    startDate: url.searchParams.get('startDate') || null,
+                    endDate: url.searchParams.get('endDate') || null
+                };
+
+                const result = getHistoryList(filters, page, pageSize);
+                sendJson(res, 200, result);
+                return;
+            }
+
+            // GET /admin/history/stats - 历史统计摘要
+            if (method === 'GET' && pathname === '/history/stats') {
+                const url = new URL(req.url, `http://${req.headers.host}`);
+                const filters = {
+                    startDate: url.searchParams.get('startDate') || null,
+                    endDate: url.searchParams.get('endDate') || null
+                };
+
+                const stats = getHistoryStats(filters);
+                sendJson(res, 200, stats);
+                return;
+            }
+
+            // GET /admin/history/models - 获取历史中使用过的模型列表
+            if (method === 'GET' && pathname === '/history/models') {
+                const models = getHistoryModelList();
+                sendJson(res, 200, models);
+                return;
+            }
+
+            // GET /admin/history/media/:filename - 静态媒体文件服务
+            if (method === 'GET' && pathname.startsWith('/history/media/')) {
+                const filename = pathname.replace('/history/media/', '');
+                if (!filename || filename.includes('..') || filename.includes('/')) {
+                    sendApiError(res, { code: ERROR_CODES.INVALID_REQUEST_BODY, message: '无效的文件名' });
+                    return;
+                }
+
+                const mediaDir = getMediaDir();
+                const filePath = path.join(mediaDir, filename);
+
+                try {
+                    const data = await fs.readFile(filePath);
+                    const ext = path.extname(filename).toLowerCase();
+                    const mimeTypes = {
+                        '.png': 'image/png',
+                        '.jpg': 'image/jpeg',
+                        '.jpeg': 'image/jpeg',
+                        '.gif': 'image/gif',
+                        '.webp': 'image/webp',
+                        '.mp4': 'video/mp4',
+                        '.webm': 'video/webm'
+                    };
+                    res.writeHead(200, {
+                        'Content-Type': mimeTypes[ext] || 'application/octet-stream',
+                        'Content-Length': data.length,
+                        'Cache-Control': 'public, max-age=31536000'
+                    });
+                    res.end(data);
+                } catch (e) {
+                    sendApiError(res, { code: ERROR_CODES.NOT_FOUND, message: '文件不存在', status: 404 });
+                }
+                return;
+            }
+
+            // GET /admin/history/:id - 单条记录详情
+            const historyDetailMatch = pathname.match(/^\/history\/([^/]+)$/);
+            if (method === 'GET' && historyDetailMatch && !pathname.includes('/retry-media')) {
+                const id = historyDetailMatch[1];
+                const record = getHistoryDetail(id);
+                if (record) {
+                    sendJson(res, 200, record);
+                } else {
+                    sendApiError(res, { code: ERROR_CODES.NOT_FOUND, message: '记录不存在', status: 404 });
+                }
+                return;
+            }
+
+            // POST /admin/history/:id/retry-media - 重试下载媒体
+            const retryMediaMatch = pathname.match(/^\/history\/([^/]+)\/retry-media$/);
+            if (method === 'POST' && retryMediaMatch) {
+                const id = retryMediaMatch[1];
+                const body = await readBody(req);
+                const mediaIndex = body.mediaIndex ?? 0;
+
+                // 使用 queueManager 的浏览器下载（如果可用）
+                let downloadFn = null;
+                try {
+                    if (queueManager && queueManager.downloadMedia) {
+                        downloadFn = (url) => queueManager.downloadMedia(url);
+                    }
+                } catch { /* queueManager 不可用，使用后备方案 */ }
+
+                const result = await retryMediaDownload(id, mediaIndex, downloadFn);
+                if (result.success) {
+                    sendJson(res, 200, result);
+                } else {
+                    sendApiError(res, { code: ERROR_CODES.INTERNAL_ERROR, message: result.message });
+                }
+                return;
+            }
+
+            // DELETE /admin/history - 批量删除记录
+            if (method === 'DELETE' && pathname === '/history') {
+                const url = new URL(req.url, `http://${req.headers.host}`);
+                const startDate = url.searchParams.get('startDate');
+                const endDate = url.searchParams.get('endDate');
+
+                // 支持按日期范围删除
+                if (startDate && endDate) {
+                    const deleted = await deleteHistoryByDateRange(startDate, endDate);
+                    sendJson(res, 200, { success: true, deleted });
+                    return;
+                }
+
+                // 支持按 ID 列表删除
+                const body = await readBody(req);
+                if (body.ids && Array.isArray(body.ids)) {
+                    const deleted = await deleteHistoryRecords(body.ids);
+                    sendJson(res, 200, { success: true, deleted });
+                    return;
+                }
+
+                sendApiError(res, { code: ERROR_CODES.INVALID_REQUEST_BODY, message: '缺少 ids 数组或日期范围参数' });
                 return;
             }
 

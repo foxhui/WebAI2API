@@ -314,6 +314,30 @@ export class PoolManager {
     }
 
     /**
+     * 使用 Worker 的浏览器上下文下载媒体
+     * @param {string} url - 媒体 URL
+     * @returns {Promise<{image?: string, error?: string}>}
+     */
+    async downloadMedia(url) {
+        // 找一个空闲的 worker
+        let worker = this.workers.find(w => w.page && w.busyCount === 0);
+        if (!worker) {
+            // 如果没有空闲的，用第一个有 page 的
+            worker = this.workers.find(w => w.page);
+        }
+        if (!worker || !worker.page) {
+            return { error: '没有可用的浏览器实例' };
+        }
+
+        try {
+            const { useContextDownload } = await import('../utils/download.js');
+            return await useContextDownload(url, worker.page);
+        } catch (e) {
+            return { error: `下载失败: ${e.message}` };
+        }
+    }
+
+    /**
      * 获取第一个 Worker 的 page
      */
     getFirstPage() {

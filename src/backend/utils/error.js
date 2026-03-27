@@ -96,6 +96,36 @@ export function normalizePageError(err, meta = {}) {
 export function normalizeHttpError(response, content = null) {
     const status = response.status();
 
+    // 尝试从响应体中提取具体错误信息
+    let detailError = null;
+    if (content) {
+        try {
+            const json = JSON.parse(content);
+            // 格式: {"error": "Request rejected: ..."}
+            if (json.error && typeof json.error === 'string') {
+                detailError = json.error;
+            }
+            // 格式: {"error": {"message": "..."}}
+            else if (json.error?.message) {
+                detailError = json.error.message;
+            }
+        } catch {
+            // 非 JSON 格式，尝试直接使用内容
+            if (content.length < 200) {
+                detailError = content;
+            }
+        }
+    }
+
+    // 检查是否是内容审核拒绝 (通常返回 422 或 429 但含有拒绝信息)
+    const isContentRejection = detailError && (
+        /reject|violat|terms|blocked|forbidden|unsafe|moderat/i.test(detailError) ||
+        detailError === 'prompt failed'
+    );
+    if (isContentRejection) {
+        return { error: `内容被拒绝: ${detailError}`, code: ADAPTER_ERRORS.CONTENT_BLOCKED, retryable: false };
+    }
+
     // 429 限流检查
     if (status === 429 || content?.includes('Too Many Requests')) {
         return { error: '触发限流/上游繁忙', code: ADAPTER_ERRORS.RATE_LIMITED, retryable: true };
@@ -108,12 +138,18 @@ export function normalizeHttpError(response, content = null) {
 
     // 5xx 服务端错误（可重试）
     if (status >= 500) {
-        return { error: `上游服务器错误，HTTP错误码: ${status}`, code: ADAPTER_ERRORS.HTTP_ERROR, retryable: true };
+        const msg = detailError
+            ? `上游服务器错误 (${status}): ${detailError}`
+            : `上游服务器错误，HTTP错误码: ${status}`;
+        return { error: msg, code: ADAPTER_ERRORS.HTTP_ERROR, retryable: true };
     }
 
     // 4xx 客户端错误（不可重试）
     if (status >= 400) {
-        return { error: `请求错误，HTTP错误码: ${status}`, code: ADAPTER_ERRORS.HTTP_ERROR, retryable: false };
+        const msg = detailError
+            ? `请求被拒绝 (${status}): ${detailError}`
+            : `请求错误，HTTP错误码: ${status}`;
+        return { error: msg, code: ADAPTER_ERRORS.HTTP_ERROR, retryable: false };
     }
 
     return null;

@@ -201,7 +201,7 @@ export function getHumanClickPoint(box, type = 'random') {
  * @param {number} stableFrames - 需要连续稳定的帧数，建议提高到 10 (约160ms)
  * @param {number} timeout - 总超时时间 (ms)
  */
-async function waitForElementStable(element, stableFrames = 20, timeout = 2000) {
+async function waitForElementStable(element, stableFrames = 10, timeout = 2000) {
     if (!element) return;
 
     try {
@@ -302,8 +302,6 @@ export async function safeClick(page, target, options = {}) {
         }
     };
 
-    let aborted = false;
-
     const doClick = async () => {
         // 1. 首次获取元素（用于滚动和等待稳定）
         const logKey = `${selector} ${target} ${options.bias || 'random'}`;
@@ -313,15 +311,12 @@ export async function safeClick(page, target, options = {}) {
 
         // 2. 确保元素在可视区域内
         logger.debug('浏览器', `[safeClick] 滚动到可视区域...`);
-        if (aborted) return;
         await el.scrollIntoViewIfNeeded().catch(() => { });
-        if (aborted) return;
 
         // 3. 如果开启了布局稳定等待，等待元素位置稳定
         if (waitStable) {
             logger.debug('浏览器', `[safeClick] 等待元素稳定...`);
             await waitForElementStable(el);
-            if (aborted) return;
             logger.debug('浏览器', `[safeClick] 元素已稳定`);
 
             // 4. 重新获取元素引用（防止等待期间 DOM 变化导致 detached 错误）
@@ -332,17 +327,14 @@ export async function safeClick(page, target, options = {}) {
             }
         }
 
-        if (aborted) return;
         // 5. 使用自维护 ghost-cursor 拟人鼠标轨迹 (仅当 humanizeCursor=true)
         if (useGhostCursor) {
             const box = await el.boundingBox();
-            if (aborted) return;
             logger.debug('浏览器', `[safeClick] boundingBox: ${JSON.stringify(box)}`);
             if (box) {
                 const { x, y } = getHumanClickPoint(box, options.bias || 'random');
                 logger.debug('浏览器', `[safeClick] 移动鼠标到 (${x.toFixed(0)}, ${y.toFixed(0)})...`);
                 await page.cursor.moveTo({ x, y }, { moveSpeed: cursorSpeed });
-                if (aborted) return;
                 logger.debug('浏览器', `[safeClick] 执行点击...`);
                 await page.mouse.click(x, y, { clickCount });
                 return;
@@ -364,10 +356,7 @@ export async function safeClick(page, target, options = {}) {
     let timeoutId;
     try {
         const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => {
-                aborted = true;
-                reject(new Error('CLICK_TIMEOUT'));
-            }, timeout);
+            timeoutId = setTimeout(() => reject(new Error('CLICK_TIMEOUT')), timeout);
         });
 
         await Promise.race([

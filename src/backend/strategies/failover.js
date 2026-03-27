@@ -67,10 +67,15 @@ export function createFailoverExecutor(options = {}) {
                     lastError = result.error;
 
                     // 检查是否可重试
-                    const normalized = normalizeError(lastError);
-                    if (!normalized.retryable && i < maxAttempts - 1) {
-                        // 不可重试的错误，但还有候选，继续尝试
-                        logger.debug('故障转移', `不可重试错误，跳过: ${lastError}`, meta);
+                    // 优先使用 result 中的 retryable，否则通过 normalizeError 推断
+                    const retryable = result.retryable !== undefined
+                        ? result.retryable
+                        : normalizeError(lastError).retryable;
+
+                    // 不可重试的错误（如内容安全问题），直接返回，不尝试其他候选
+                    if (!retryable) {
+                        logger.debug('故障转移', `不可重试错误，停止故障转移: ${lastError}`, meta);
+                        return { error: lastError, code: result.code, retryable: false };
                     }
 
                     // 触发重试回调

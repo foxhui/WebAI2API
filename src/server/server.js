@@ -26,6 +26,7 @@ const { logger } = await import('../utils/logger.js');
 const { createQueueManager, createGlobalRouter } = await import('./index.js');
 const { isUnderSupervisor } = await import('../utils/ipc.js');
 const { loadTodayStats } = await import('../utils/stats.js');
+const { initHistoryDb } = await import('../utils/history.js');
 
 // ==================== 初始化配置 ====================
 
@@ -134,6 +135,13 @@ const handleRequest = createGlobalRouter({
 async function startServer() {
     // 加载今日统计
     await loadTodayStats();
+
+    // 初始化历史记录数据库
+    try {
+        await initHistoryDb();
+    } catch (err) {
+        logger.warn('服务器', '历史记录数据库初始化失败，功能可能不可用', { error: err.message });
+    }
 
     // 登录模式提示
     if (isLoginMode) {

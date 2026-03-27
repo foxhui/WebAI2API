@@ -13,7 +13,7 @@
  */
 export const TIMEOUTS = {
     /** 元素点击超时 (safeClick) */
-    ELEMENT_CLICK: 25000,
+    ELEMENT_CLICK: 15000,
 
     /** 输入框等待超时 (waitForInput) */
     INPUT_WAIT: 20000,

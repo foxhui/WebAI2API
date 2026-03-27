@@ -13,7 +13,10 @@ import {
   CloseCircleOutlined,
   LoadingOutlined,
   InboxOutlined,
-  PictureOutlined
+  PictureOutlined,
+  HistoryOutlined,
+  RocketOutlined,
+  MenuOutlined
 } from '@ant-design/icons-vue';
 import { useSettingsStore } from '@/stores/settings';
 import LoginModal from '@/components/auth/LoginModal.vue';
@@ -23,6 +26,7 @@ const settingsStore = useSettingsStore();
 
 const selectedKeys = ref(['dash']);
 const collapsed = ref(false);
+const isMobile = ref(false);
 const loginVisible = ref(false);
 
 const iconLoading = ref(false);
@@ -292,6 +296,7 @@ const openApiTestDrawer = () => {
 // 菜单 key 到路由路径的映射
 const menuRoutes = {
   'dash': '/',
+  'history': '/tools/request',
   'settings-server': '/settings/server',
   'settings-workers': '/settings/workers',
   'settings-browser': '/settings/browser',
@@ -306,6 +311,7 @@ const handleMenuClick = ({ key }) => {
   const route = menuRoutes[key];
   if (route) {
     router.push(route);
+    if (isMobile.value) collapsed.value = true;
   }
 };
 
@@ -344,7 +350,8 @@ async function checkConnection() {
 onMounted(async () => {
   // 响应式侧边栏
   const checkScreenSize = () => {
-    if (window.innerWidth <= 768) {
+    isMobile.value = window.innerWidth <= 768;
+    if (isMobile.value) {
       collapsed.value = true;
     }
   };
@@ -391,32 +398,42 @@ onMounted(async () => {
     <LoginModal v-model:visible="loginVisible" />
     <a-layout style="min-height: 100vh" theme="light">
       <a-layout-header class="header"
-        style="background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1.5px solid rgba(0, 0, 0, 0.05); display: flex; align-items: center; padding: 0 24px; position: fixed; width: 100%; top: 0; z-index: 1000;">
-        <div class="logo" style="font-size: 1.25rem; font-weight: bold; color: #1890ff; margin-right: 24px;">
+        :style="{ background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1.5px solid rgba(0, 0, 0, 0.05)', display: 'flex', alignItems: 'center', padding: isMobile ? '0 12px' : '0 24px', position: 'fixed', width: '100%', top: 0, zIndex: 1000 }">
+        <a-button v-if="isMobile" type="text" @click="collapsed = !collapsed" style="margin-right: 8px; font-size: 18px;">
+          <template #icon><MenuOutlined /></template>
+        </a-button>
+        <div class="logo" :style="{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1890ff', marginRight: isMobile ? '8px' : '24px' }">
           WebAI2API
         </div>
-        <a-flex justify="end" align="center" style="flex: 1;" :gap="12">
-          <a-button @click="openApiTestDrawer">
+        <a-flex justify="end" align="center" style="flex: 1;" :gap="8">
+          <a-button @click="openApiTestDrawer" :size="isMobile ? 'small' : 'middle'">
             <template #icon>
               <ApiOutlined />
             </template>
-            接口测试
+            <span v-if="!isMobile">接口测试</span>
           </a-button>
-          <a-button danger :loading="iconLoading" @click="enterIconLoading">
+          <a-button danger :loading="iconLoading" @click="enterIconLoading" :size="isMobile ? 'small' : 'middle'">
             <template #icon>
               <PoweroffOutlined />
             </template>
-            退出登录
+            <span v-if="!isMobile">退出登录</span>
           </a-button>
         </a-flex>
       </a-layout-header>
       <a-layout style="margin-top: 64px;">
+        <div v-if="isMobile && !collapsed" class="sider-mask" @click="collapsed = true"></div>
         <a-layout-sider v-model:collapsed="collapsed" collapsible theme="light"
-          style="position: fixed; left: 0; top: 64px; height: calc(100vh - 64px); overflow-y: auto; z-index: 100;">
+          :collapsed-width="isMobile ? 0 : 80"
+          :trigger="isMobile ? null : undefined"
+          :style="{ position: 'fixed', left: 0, top: '64px', height: 'calc(100vh - 64px)', overflowY: 'auto', zIndex: isMobile ? 200 : 100 }">
           <a-menu v-model:selectedKeys="selectedKeys" mode="inline" @click="handleMenuClick">
             <a-menu-item key="dash">
               <DashboardOutlined />
               <span>状态概览</span>
+            </a-menu-item>
+            <a-menu-item key="history">
+              <RocketOutlined />
+              <span>请求模型</span>
             </a-menu-item>
             <a-sub-menu key="settings">
               <template #title>
@@ -444,7 +461,7 @@ onMounted(async () => {
           </a-menu>
         </a-layout-sider>
         <a-layout
-          :style="{ marginLeft: collapsed ? '80px' : '200px', padding: '16px', transition: 'margin-left 0.2s' }">
+          :style="{ marginLeft: isMobile ? '0' : (collapsed ? '80px' : '200px'), padding: isMobile ? '12px' : '16px', transition: 'margin-left 0.2s' }">
           <a-layout-content style="min-height: 280px">
             <router-view />
           </a-layout-content>
@@ -463,7 +480,7 @@ onMounted(async () => {
     </a-layout>
 
     <!-- 接口测试抽屉 -->
-    <a-drawer v-model:open="apiTestDrawer" title="接口测试" placement="right" :width="500">
+    <a-drawer v-model:open="apiTestDrawer" title="接口测试" placement="right" :width="isMobile ? '100%' : 500">
       <a-space direction="vertical" style="width: 100%" size="large">
         <!-- Models 接口 -->
         <a-card title="GET /v1/models" size="small">
@@ -653,5 +670,15 @@ onMounted(async () => {
 
 ::-webkit-scrollbar-track {
   background: #f1f1f1;
+}
+
+.sider-mask {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 199;
 }
 </style>

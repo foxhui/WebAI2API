@@ -15,6 +15,7 @@ import {
 } from './respond.js';
 import { ERROR_CODES } from './errors.js';
 import { incrementSuccess, incrementFailed } from '../utils/stats.js';
+import { createRecord, updateRecord, processResponseMedia } from '../utils/history.js';
 
 /**
  * @typedef {object} TaskContext
@@ -94,8 +95,24 @@ export function createQueueManager(queueConfig, callbacks) {
      */
     async function processTask(task) {
         const { res, prompt, imagePaths, modelId, modelName, id, isStreaming } = task;
+        const startTime = Date.now();
 
         logger.info('服务器', '[队列] 开始处理任务', { id, remaining: queue.length });
+
+        // 创建历史记录
+        try {
+            createRecord({
+                id,
+                modelId,
+                modelName,
+                prompt,
+                inputImages: imagePaths,
+                isStreaming,
+                status: 'pending'
+            });
+        } catch (e) {
+            logger.debug('服务器', `创建历史记录失败: ${e.message}`);
+        }
 
         // 启动心跳（流式请求）
         let heartbeatInterval = null;
@@ -123,8 +140,17 @@ export function createQueueManager(queueConfig, callbacks) {
 
             // 处理结果
             if (result.error) {
-                // 生成失败：记录统计并返回错误
+                // 生成失败：记录统计和历史
                 await incrementFailed();
+                try {
+                    updateRecord(id, {
+                        status: 'failed',
+                        errorMessage: result.error,
+                        durationMs: Date.now() - startTime
+                    });
+                } catch (e) {
+                    logger.debug('服务器', `更新历史记录失败: ${e.message}`);
+                }
                 sendApiError(res, {
                     code: ERROR_CODES.GENERATION_FAILED,
                     message: result.error,
@@ -136,28 +162,53 @@ export function createQueueManager(queueConfig, callbacks) {
 
             // 生成成功
             let finalContent = '';
+            let reasoningContent = null;  // 思考过程内容
+            let historyResponseText = '';  // 历史记录中存储的文本（不含 base64）
+
             if (result.image) {
-                // 只有图片格式才使用 markdown，视频等其他格式直接返回 data URI
-                if (result.image.startsWith('data:image/')) {
-                    finalContent = `![generated](${result.image})`;
-                } else {
-                    finalContent = result.image;
-                }
+                // 直接返回 base64 数据，不加 Markdown 包装
+                finalContent = result.image;
+                // 历史记录只存原始 URL，不存 base64
+                historyResponseText = result.imageUrl || '';
             } else {
                 finalContent = result.text || '生成失败';
+                historyResponseText = result.text || '';
             }
+
+            // 提取思考过程（如果有）
+            if (result.reasoning) {
+                reasoningContent = result.reasoning;
+            }
+
             logger.info('服务器', '结果已准备就绪', { id });
             await incrementSuccess();
 
+            // 更新历史记录（异步处理媒体，不阻塞响应）
+            processResponseMedia(result, id).then(responseMedia => {
+                try {
+                    updateRecord(id, {
+                        status: 'success',
+                        responseText: historyResponseText,
+                        reasoningContent,
+                        responseMedia,
+                        durationMs: Date.now() - startTime
+                    });
+                } catch (e) {
+                    logger.debug('服务器', `更新历史记录失败: ${e.message}`);
+                }
+            }).catch(e => {
+                logger.debug('服务器', `处理响应媒体失败: ${e.message}`);
+            });
+
             // 发送成功响应
-            logger.info('服务器', '准备发送响应...', { id, isStreaming, contentLength: finalContent.length });
+            logger.info('服务器', '准备发送响应...', { id, isStreaming, contentLength: finalContent.length, hasReasoning: !!reasoningContent });
             if (isStreaming) {
-                const chunk = buildChatCompletionChunk(finalContent, modelName);
+                const chunk = buildChatCompletionChunk(finalContent, modelName, 'stop', reasoningContent);
                 sendSse(res, chunk);
                 sendSseDone(res);
                 logger.info('服务器', '流式响应已结束', { id });
             } else {
-                const response = buildChatCompletion(finalContent, modelName);
+                const response = buildChatCompletion(finalContent, modelName, reasoningContent);
                 sendJson(res, 200, response);
                 logger.info('服务器', 'JSON 响应已发送', { id });
             }
@@ -166,8 +217,17 @@ export function createQueueManager(queueConfig, callbacks) {
             // 清除心跳
             if (heartbeatInterval) clearInterval(heartbeatInterval);
 
-            // 记录失败统计
+            // 记录失败统计和历史
             await incrementFailed();
+            try {
+                updateRecord(id, {
+                    status: 'failed',
+                    errorMessage: err.message,
+                    durationMs: Date.now() - startTime
+                });
+            } catch (e) {
+                logger.debug('服务器', `更新历史记录失败: ${e.message}`);
+            }
             logger.error('服务器', '任务处理失败', { id, error: err.message });
             sendApiError(res, {
                 code: ERROR_CODES.INTERNAL_ERROR,
@@ -291,6 +351,18 @@ export function createQueueManager(queueConfig, callbacks) {
         return await getCookies(workerName, domain);
     }
 
+    /**
+     * 使用 Worker 的浏览器下载媒体
+     * @param {string} url - 媒体 URL
+     * @returns {Promise<{image?: string, imageUrl?: string, error?: string}>}
+     */
+    async function downloadMedia(url) {
+        if (!poolContext || !poolContext.downloadMedia) {
+            throw new Error('Pool 未初始化或不支持 downloadMedia');
+        }
+        return await poolContext.downloadMedia(url);
+    }
+
     return {
         addTask,
         getStatus,
@@ -298,6 +370,7 @@ export function createQueueManager(queueConfig, callbacks) {
         canAcceptNonStreaming,
         initializePool,
         getPoolContext,
-        getWorkerCookies
+        getWorkerCookies,
+        downloadMedia
     };
 }

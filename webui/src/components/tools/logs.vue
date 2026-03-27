@@ -228,7 +228,7 @@ onUnmounted(() => {
 
         <div class="stats-content">
             <a-range-picker v-model:value="dateRange" :format="'YYYY-MM-DD'" :placeholder="['开始日期', '结束日期']"
-                size="small" style="width: 240px" @change="fetchRangeStats" />
+                size="small" class="stats-date-picker" @change="fetchRangeStats" />
 
             <a-divider type="vertical" style="height: 32px; margin: 0 16px" />
 
@@ -309,11 +309,13 @@ onUnmounted(() => {
         <!-- 日志列表 -->
         <div class="log-container">
             <div v-for="log in filteredLogs" :key="log.id" class="log-line" :class="'level-' + log.level.toLowerCase()">
-                <span class="log-time">{{ log.time }}</span>
-                <a-tag :color="levelConfig[log.level]?.color || '#8c8c8c'" size="small" style="margin: 0 8px;">
-                    {{ log.level }}
-                </a-tag>
-                <span class="log-module">[{{ log.module }}]</span>
+                <div class="log-meta">
+                    <a-tag :color="levelConfig[log.level]?.color || '#8c8c8c'" size="small" style="margin: 0;">
+                        {{ log.level }}
+                    </a-tag>
+                    <span class="log-module">[{{ log.module }}]</span>
+                    <span class="log-time">{{ log.time }}</span>
+                </div>
                 <span class="log-message">{{ log.message }}</span>
             </div>
             <a-empty v-if="filteredLogs.length === 0" description="暂无日志" />
@@ -325,6 +327,7 @@ onUnmounted(() => {
 .log-container {
     max-height: 600px;
     overflow-y: auto;
+    overflow-x: auto;
     font-family: 'Consolas', 'Monaco', monospace;
     font-size: 12px;
     background: #fafafa;
@@ -335,6 +338,9 @@ onUnmounted(() => {
 .log-line {
     padding: 4px 0;
     border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -346,17 +352,26 @@ onUnmounted(() => {
     word-break: break-all;
 }
 
+.log-meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
 .log-time {
     color: #8c8c8c;
 }
 
 .log-module {
     color: #1890ff;
-    margin-right: 8px;
+    margin-right: 4px;
 }
 
 .log-message {
     color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .level-erro .log-message {
@@ -459,6 +474,11 @@ onUnmounted(() => {
     color: #8c8c8c;
 }
 
+/* 日期选择器 */
+.stats-date-picker {
+    width: 240px;
+}
+
 /* 响应式：小屏幕统计面板垂直布局 */
 @media (max-width: 576px) {
     .stats-content {
@@ -472,6 +492,45 @@ onUnmounted(() => {
 
     .stats-numbers {
         margin-top: 8px;
+    }
+}
+
+/* 响应式：移动端日志堆叠布局 */
+@media (max-width: 768px) {
+    .stats-date-picker {
+        width: 100%;
+    }
+
+    .log-container {
+        padding: 8px;
+        font-size: 11px;
+    }
+
+    .log-line {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        white-space: normal;
+        word-break: break-all;
+        padding: 6px 0;
+    }
+
+    .log-line:hover {
+        white-space: normal;
+    }
+
+    .log-meta {
+        flex-wrap: wrap;
+    }
+
+    .log-time {
+        font-size: 10px;
+    }
+
+    .log-message {
+        white-space: normal;
+        word-break: break-all;
+        overflow: visible;
     }
 }
 </style>

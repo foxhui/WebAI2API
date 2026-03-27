@@ -124,7 +124,7 @@ export function createOpenAIRouter(context) {
 
             const { prompt, imagePaths, modelId, modelName } = parseResult.data;
 
-            logger.info('服务器', `[队列] 请求入队: ${prompt.slice(0, 10)}...`, { id: requestId, images: imagePaths.length });
+            logger.info('服务器', `[队列] 请求入队: ${prompt.slice(0, 100)}...`, { id: requestId, images: imagePaths.length });
 
             // 加入队列
             queueManager.addTask({

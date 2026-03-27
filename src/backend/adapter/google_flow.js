@@ -48,8 +48,7 @@ async function detectImageAspect(imgPath) {
  * @returns {Promise<{image?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page, config } = context;
-    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
+    const { page } = context;
 
     // 获取模型配置
     const modelConfig = manifest.models.find(m => m.id === modelId) || manifest.models[0];
@@ -198,7 +197,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         const apiResponsePromise = waitApiResponse(page, {
             urlMatch: 'flowMedia:batchGenerateImages',
             method: 'POST',
-            timeout: waitTimeout,
+            timeout: 120000,
             meta
         });
 
@@ -231,10 +230,8 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         // 11. 下载图片并转为 base64
         logger.info('适配器', '正在下载图片...', meta);
-        const imgDlCfg = config?.backend?.pool?.failover || {};
-        const downloadResult = await useContextDownload(imageUrl, page, {
-            retries: imgDlCfg.imgDlRetry ? (imgDlCfg.imgDlRetryMaxRetries || 2) : 0
-        });
+        logger.debug('适配器', `图片 URL: ${imageUrl}`, meta);
+        const downloadResult = await useContextDownload(imageUrl, page);
 
         if (downloadResult.error) {
             logger.error('适配器', downloadResult.error, meta);
@@ -242,7 +239,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         }
 
         logger.info('适配器', '图片生成完成', meta);
-        return { image: downloadResult.image };
+        return { image: downloadResult.image, imageUrl: downloadResult.imageUrl };
 
     } catch (err) {
         // 顶层错误处理

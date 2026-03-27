@@ -159,6 +159,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         }
 
         logger.info('适配器', '已获取图片链接，开始下载...', meta);
+        logger.debug('适配器', `图片 URL: ${imageUrl}`, meta);
 
         // 8. 下载图片
         const imgDlCfg = config?.backend?.pool?.failover || {};
@@ -171,7 +172,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         }
 
         logger.info('适配器', '图片生成完成', meta);
-        return { image: downloadResult.image };
+        return { image: downloadResult.image, imageUrl: downloadResult.imageUrl };
 
     } catch (err) {
         const pageError = normalizePageError(err, meta);

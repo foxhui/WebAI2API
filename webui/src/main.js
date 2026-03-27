@@ -14,6 +14,7 @@ const routes = [
     { path: '/tools/display', component: () => import('@/components/tools/display.vue') },
     { path: '/tools/cache', component: () => import('@/components/tools/cache.vue') },
     { path: '/tools/logs', component: () => import('@/components/tools/logs.vue') },
+    { path: '/tools/request', component: () => import('@/components/tools/request.vue') },
 ];
 
 const router = createRouter({

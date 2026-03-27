@@ -28,8 +28,7 @@ const TARGET_URL = 'https://www.doubao.com/chat/';
  * @returns {Promise<{text?: string, reasoning?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page, config } = context;
-    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
+    const { page } = context;
 
     // 是否使用深度思考模式
     const useThinking = modelId === 'seed-thinking' || modelId === 'seed-pro';
@@ -71,7 +70,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
             try {
                 // 点击上传菜单按钮
-                const uploadMenuBtn = page.locator('button[aria-haspopup="menu"]:not(:has(div[data-testid="deep-thinking-action-button"]))').first();
+                const uploadMenuBtn = page.locator('main button[aria-haspopup="menu"]:not(:has(div[data-testid="deep-thinking-action-button"]))').first();
                 await safeClick(page, uploadMenuBtn, { bias: 'button' });
                 await sleep(300, 500);
 
@@ -98,15 +97,8 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         const modelMenuName = MODEL_MENU_MAP[modelId] || MODEL_MENU_MAP['seed'];
         logger.debug('适配器', `选择模型: ${modelId} -> ${modelMenuName}`, meta);
 
-        // 给予 3 秒的缓冲时间等待 React 渲染按钮
-        const modelSelectorBtn = page.locator('button[aria-haspopup="menu"]:has(div[data-testid="deep-thinking-action-button"])').first();
-        let selectorExists = false;
-        try {
-            await modelSelectorBtn.waitFor({ state: 'attached', timeout: 3000 });
-            selectorExists = true;
-        } catch (e) {
-            selectorExists = false;
-        }
+        const modelSelectorBtn = page.locator('main button[aria-haspopup="menu"]:has(div[data-testid="deep-thinking-action-button"])');
+        const selectorExists = await modelSelectorBtn.count() > 0;
 
         if (selectorExists) {
             await safeClick(page, modelSelectorBtn, { bias: 'button' });
@@ -130,12 +122,12 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         let isResolved = false;
 
         const resultPromise = new Promise((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
+            const timeout = setTimeout(() => {
                 if (!isResolved) {
                     isResolved = true;
-                    reject(new Error(`API_TIMEOUT: 响应超时 (${Math.round(waitTimeout / 1000)}秒)`));
+                    reject(new Error('API_TIMEOUT: 响应超时 (120秒)'));
                 }
-            }, waitTimeout);
+            }, 120000);
 
             // 监听页面响应
             const handleResponse = async (response) => {
@@ -157,7 +149,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
                         if (!isResolved) {
                             isResolved = true;
-                            clearTimeout(timeoutId);
+                            clearTimeout(timeout);
                             page.off('response', handleResponse);
                             resolve();
                         }
@@ -207,87 +199,84 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
  * @returns {{text: string, reasoning?: string}}
  */
 function parseSSEResponse(body, useThinking) {
-    const lines = body.split('\n');
     let resultText = '';
     let reasoningText = '';
-    let inThinkingBlock = false;
-    let thinkingBlockId = null;
 
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
+    try {
+        const lines = body.split('\n');
+        let inThinkingBlock = false;
+        let thinkingBlockId = null;
 
-        // 解析事件类型
-        if (line.startsWith('event:')) {
-            const eventType = line.substring(6).trim();
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
 
-            // 找到对应的 data 行
-            if (i + 1 < lines.length && lines[i + 1].startsWith('data:')) {
-                const dataLine = lines[i + 1].substring(5).trim();
-                if (!dataLine || dataLine === '{}') continue;
+            // 解析事件类型
+            if (line.startsWith('event:')) {
+                const eventType = line.substring(6).trim();
 
-                try {
-                    const data = JSON.parse(dataLine);
+                // 找到对应的 data 行
+                if (i + 1 < lines.length && lines[i + 1].startsWith('data:')) {
+                    const dataLine = lines[i + 1].substring(5).trim();
+                    if (!dataLine || dataLine === '{}') continue;
 
-                    // SSE_REPLY_END with end_type: 1 的 brief 仅作兜底
-                    if (eventType === 'SSE_REPLY_END' && data.end_type === 1) {
-                        const brief = data.msg_finish_attr?.brief || '';
-                        if (!resultText && brief) {
-                            resultText = brief;
+                    try {
+                        const data = JSON.parse(dataLine);
+
+                        // SSE_REPLY_END with end_type: 1 包含完整回复
+                        if (eventType === 'SSE_REPLY_END' && data.end_type === 1) {
+                            resultText = data.msg_finish_attr?.brief || '';
                         }
-                    }
 
-                    // STREAM_MSG_NOTIFY 检测深度思考块
-                    if (eventType === 'STREAM_MSG_NOTIFY') {
-                        const blocks = data.content?.content_block || [];
-                        for (const block of blocks) {
-                            if (block.block_type === 10040 && block.content?.thinking_block) {
-                                inThinkingBlock = true;
-                                thinkingBlockId = block.block_id;
-                            }
-                        }
-                    }
-
-                    // STREAM_CHUNK 处理内容块
-                    if (eventType === 'STREAM_CHUNK' && data.patch_op) {
-                        for (const op of data.patch_op) {
-                            if (op.patch_object === 1 && op.patch_value?.content_block) {
-                                for (const block of op.patch_value.content_block) {
-                                    // 思考块结束标记
-                                    if (block.block_type === 10040 && block.is_finish) {
-                                        inThinkingBlock = false;
-                                    }
-                                    // 思考内容 (parent_id 指向 thinking_block)
-                                    if (useThinking && block.parent_id === thinkingBlockId) {
-                                        const text = block.content?.text_block?.text || '';
-                                        if (text) reasoningText += text;
-                                    }
-                                    // 正文内容 (block_type 10000，非思考子块)
-                                    else if (block.block_type === 10000 && block.parent_id !== thinkingBlockId) {
-                                        const text = block.content?.text_block?.text || '';
-                                        if (text) resultText += text;
+                        // STREAM_MSG_NOTIFY 检测深度思考块
+                        if (eventType === 'STREAM_MSG_NOTIFY' && useThinking) {
+                            try {
+                                const blocks = data.content?.content_block || [];
+                                for (const block of blocks) {
+                                    if (block.block_type === 10040 && block.content?.thinking_block) {
+                                        inThinkingBlock = true;
+                                        thinkingBlockId = block.block_id;
                                     }
                                 }
-                            }
+                            } catch { /* 忽略 thinking 块检测错误 */ }
                         }
-                    }
 
-                    // CHUNK_DELTA 增量文本
-                    if (eventType === 'CHUNK_DELTA') {
-                        const text = data.text || '';
-                        if (text) {
-                            if (useThinking && inThinkingBlock) {
-                                reasoningText += text;
-                            } else {
-                                resultText += text;
-                            }
+                        // STREAM_CHUNK 处理内容块
+                        if (eventType === 'STREAM_CHUNK' && useThinking && data.patch_op) {
+                            try {
+                                for (const op of data.patch_op) {
+                                    if (op.patch_object === 1 && op.patch_value?.content_block) {
+                                        for (const block of op.patch_value.content_block) {
+                                            // 如果有 parent_id 指向 thinking_block，则是思考内容
+                                            if (block.parent_id === thinkingBlockId) {
+                                                const text = block.content?.text_block?.text || '';
+                                                if (text) reasoningText += text;
+                                            }
+                                            // 思考块结束标记
+                                            if (block.block_type === 10040 && block.is_finish) {
+                                                inThinkingBlock = false;
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch { /* 忽略 thinking 内容提取错误 */ }
                         }
-                    }
 
-                } catch (e) {
-                    // JSON 解析失败，跳过
+                        // CHUNK_DELTA 增量文本 (思考过程中的增量)
+                        if (eventType === 'CHUNK_DELTA' && useThinking && inThinkingBlock) {
+                            try {
+                                const text = data.text || '';
+                                if (text) reasoningText += text;
+                            } catch { /* 忽略增量文本提取错误 */ }
+                        }
+
+                    } catch {
+                        // JSON 解析失败，跳过
+                    }
                 }
             }
         }
+    } catch {
+        // 整体解析失败，返回空结果
     }
 
     return { text: resultText, reasoning: reasoningText };

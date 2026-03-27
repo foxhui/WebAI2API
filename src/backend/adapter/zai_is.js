@@ -116,7 +116,6 @@ async function handleDiscordAuth(page) {
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
     const { page, config } = context;
-    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
 
     try {
         // 开启新对话 - 先等待可能正在进行的登录处理完成
@@ -277,7 +276,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             completionsResponse = await waitApiResponse(page, {
                 urlMatch: 'chat/completions',
                 method: 'POST',
-                timeout: waitTimeout,
+                timeout: 120000,
                 errorText: ['Model is unable to process your request', 'Rate limit reached'],
                 meta
             });
@@ -313,7 +312,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             completedResponse = await waitApiResponse(page, {
                 urlMatch: 'chat/completed',
                 method: 'POST',
-                timeout: waitTimeout,
+                timeout: 120000,
                 errorText: ['Model is unable to process your request', 'Rate limit reached'],
                 meta
             });
@@ -359,19 +358,17 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         }
 
         const imageUrl = imageUrlMatch[1];
-        logger.info('适配器', `已提取图片链接: ${imageUrl}`, meta);
+        logger.debug('适配器', `图片 URL: ${imageUrl}`, meta);
 
         // 下载图片
-        const imgDlCfg = config?.backend?.pool?.failover || {};
-        const downloadResult = await useContextDownload(imageUrl, page, {
-            retries: imgDlCfg.imgDlRetry ? (imgDlCfg.imgDlRetryMaxRetries || 2) : 0
-        });
+        logger.info('适配器', '正在下载图片...', meta);
+        const downloadResult = await useContextDownload(imageUrl, page);
         if (downloadResult.error) {
             return downloadResult;
         }
 
         logger.info('适配器', '已下载图片，任务完成', meta);
-        return { image: downloadResult.image };
+        return { image: downloadResult.image, imageUrl: downloadResult.imageUrl };
 
     } catch (err) {
         // 顶层错误处理
