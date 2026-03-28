@@ -27,16 +27,18 @@ function isRetryableError(message) {
  */
 export async function useContextDownload(url, page, options = {}) {
     const { timeout = 120000, retries = 3, retryDelay = 1000 } = options;
+    // 至少执行一次尝试（retries=0 表示不重试，但仍需下载一次）
+    const maxAttempts = Math.max(1, retries);
 
-    for (let attempt = 1; attempt <= retries; attempt++) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             const response = await page.request.get(url, { timeout });
 
             if (!response.ok()) {
                 const status = response.status();
                 // 5xx 错误可重试
-                if (status >= 500 && attempt < retries) {
-                    logger.warn('下载', `HTTP ${status}，重试 ${attempt}/${retries}...`);
+                if (status >= 500 && attempt < maxAttempts) {
+                    logger.warn('下载', `HTTP ${status}，重试 ${attempt}/${maxAttempts}...`);
                     await new Promise(r => setTimeout(r, retryDelay * attempt));
                     continue;
                 }
@@ -50,8 +52,8 @@ export async function useContextDownload(url, page, options = {}) {
 
             return { image: `data:${mimeType};base64,${base64}`, imageUrl: url };
         } catch (e) {
-            if (isRetryableError(e.message) && attempt < retries) {
-                logger.warn('下载', `${e.message}，重试 ${attempt}/${retries}...`);
+            if (isRetryableError(e.message) && attempt < maxAttempts) {
+                logger.warn('下载', `${e.message}，重试 ${attempt}/${maxAttempts}...`);
                 await new Promise(r => setTimeout(r, retryDelay * attempt));
                 continue;
             }
