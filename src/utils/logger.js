@@ -112,6 +112,9 @@ function shouldLog(level) {
     return targetIndex >= effectiveEnvIndex;
 }
 
+// 需要提取到前面用方括号显示的 meta 字段
+const FRONT_META_KEYS = ['id', 'adapter', 'model'];
+
 export function log(level, mod, msg, meta = {}) {
     if (!shouldLog(level)) return;
 
@@ -121,10 +124,23 @@ export function log(level, mod, msg, meta = {}) {
 
     // 将消息中的换行符替换为 ↵ 符号，保持日志为单行
     const sanitizedMsg = msg.replace(/\r?\n/g, ' ↵ ');
-    const base = `${ts} [${levelTag}] [${mod}] ${sanitizedMsg}`;
 
-    const metaStr = Object.keys(meta).length
-        ? ' | ' + Object.entries(meta).map(([k, v]) => {
+    // 提取关键字段放在前面用方括号显示
+    const frontParts = [];
+    const remainingMeta = {};
+    for (const [k, v] of Object.entries(meta)) {
+        if (FRONT_META_KEYS.includes(k) && v !== undefined && v !== null) {
+            frontParts.push(`[${v}]`);
+        } else {
+            remainingMeta[k] = v;
+        }
+    }
+    const frontStr = frontParts.length ? ' ' + frontParts.join(' ') : '';
+
+    const base = `${ts} [${levelTag}] [${mod}]${frontStr} ${sanitizedMsg}`;
+
+    const metaStr = Object.keys(remainingMeta).length
+        ? ' | ' + Object.entries(remainingMeta).map(([k, v]) => {
             if (v instanceof Error) {
                 return `${k}=${v.message}`;
             }

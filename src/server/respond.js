@@ -106,9 +106,20 @@ export function sendApiError(res, options) {
  * 构造 OpenAI 格式的聊天完成响应（非流式）
  * @param {string} content - 响应内容
  * @param {string} [modelName] - 模型名称
+ * @param {string} [reasoningContent] - 思考/推理过程内容 (OpenAI o1 格式)
  * @returns {object} OpenAI 格式的响应对象
  */
-export function buildChatCompletion(content, modelName) {
+export function buildChatCompletion(content, modelName, reasoningContent) {
+    const message = {
+        role: 'assistant',
+        content: content
+    };
+
+    // 如果有思考过程，添加 reasoning_content 字段 (OpenAI o1 兼容格式)
+    if (reasoningContent) {
+        message.reasoning_content = reasoningContent;
+    }
+
     return {
         id: 'chatcmpl-' + Date.now(),
         object: 'chat.completion',
@@ -116,10 +127,7 @@ export function buildChatCompletion(content, modelName) {
         model: modelName || 'default-model',
         choices: [{
             index: 0,
-            message: {
-                role: 'assistant',
-                content: content
-            },
+            message,
             finish_reason: 'stop'
         }]
     };
@@ -130,9 +138,17 @@ export function buildChatCompletion(content, modelName) {
  * @param {string} content - 响应内容
  * @param {string} [modelName] - 模型名称
  * @param {string|null} [finishReason='stop'] - 完成原因
+ * @param {string} [reasoningContent] - 思考/推理过程内容 (OpenAI o1 格式)
  * @returns {object} OpenAI 格式的流式响应块
  */
-export function buildChatCompletionChunk(content, modelName, finishReason = 'stop') {
+export function buildChatCompletionChunk(content, modelName, finishReason = 'stop', reasoningContent) {
+    const delta = { content };
+
+    // 如果有思考过程，添加 reasoning_content 字段
+    if (reasoningContent) {
+        delta.reasoning_content = reasoningContent;
+    }
+
     return {
         id: 'chatcmpl-' + Date.now(),
         object: 'chat.completion.chunk',
@@ -140,7 +156,7 @@ export function buildChatCompletionChunk(content, modelName, finishReason = 'sto
         model: modelName || 'default-model',
         choices: [{
             index: 0,
-            delta: { content },
+            delta,
             finish_reason: finishReason
         }]
     };
