@@ -265,10 +265,9 @@ export const manifest = {
 
     // 模型列表
     models: [
-        { id: 'gpt-5.4', codeName: 'GPT-5.4 Instant', imagePolicy: 'optional' },
-        { id: 'gpt-5.4-thinking', codeName: 'GPT-5.4 Thinking', imagePolicy: 'optional' },
-        { id: 'gpt-5.3', codeName: 'GPT-5.3 Instant', imagePolicy: 'optional' },
-        { id: 'gpt-5.3-thinking', codeName: 'GPT-5.3 Thinking', imagePolicy: 'optional' },
+        { id: 'gpt-instant', codeName: 'Instant', imagePolicy: 'optional', type: 'text' },
+        { id: 'gpt-thinking', codeName: 'Thinking', imagePolicy: 'optional', type: 'text' },
+        { id: 'gpt-pro', codeName: 'Pro', imagePolicy: 'optional', type: 'text' }
     ],
 
     // 无需导航处理器

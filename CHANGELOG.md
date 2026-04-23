@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.7] - 2026-04-24
+
+### 🐛 Fixed
+- **适配器**
+  - 修复 ChatGPT 缺少系统提示词的问题
+  - 尝试修复 ChatGPT 选择模型的问题 （目前应该是灰度测试，有些账号界面不一样，并且作者没有会员账号仅为猜测修复）
+
 ## [3.6.6] - 2026-04-12
 
 ### 🐛 Fixed
