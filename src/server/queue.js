@@ -166,8 +166,13 @@ export function createQueueManager(queueConfig, callbacks) {
             let historyResponseText = '';  // 历史记录中存储的文本（不含 base64）
 
             if (result.image) {
-                // 直接返回 base64 数据，不加 Markdown 包装
-                finalContent = result.image;
+                // 判断是否开启 Markdown 格式
+                const imageMarkdown = config?.server?.imageMarkdown || false;
+                if (imageMarkdown) {
+                    finalContent = `![generated](${result.image})`;
+                } else {
+                    finalContent = result.image;
+                }
                 // 历史记录只存原始 URL，不存 base64
                 historyResponseText = result.imageUrl || '';
             } else {

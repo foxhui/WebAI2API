@@ -63,6 +63,11 @@ export function validateServerConfig(data) {
         }
     }
 
+    // Image Markdown 校验
+    if (data.imageMarkdown !== undefined && typeof data.imageMarkdown !== 'boolean') {
+        errors.push('imageMarkdown 必须是布尔值');
+    }
+
     return { valid: errors.length === 0, errors };
 }
 

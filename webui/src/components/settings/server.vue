@@ -12,7 +12,8 @@ const formData = reactive({
     keepaliveMode: 'comment',
     logLevel: 'info',
     queueBuffer: 2,
-    imageLimit: 5
+    imageLimit: 5,
+    imageMarkdown: false
 });
 
 onMounted(async () => {
@@ -144,6 +145,18 @@ const handleSave = async () => {
                         </div>
                         <a-input-number v-model:value="formData.imageLimit" :min="1" :max="10" placeholder="默认为 5"
                             style="width: 100%" />
+                    </div>
+                </a-col>
+
+                <!-- 图片生成结果使用 Markdown -->
+                <a-col :xs="24" :md="12">
+                    <div style="margin-bottom: 8px;">
+                        <div style="font-weight: 600; margin-bottom: 4px;">图片 Markdown 格式</div>
+                        <div style="font-size: 12px; color: #8c8c8c; margin-bottom: 8px;">
+                            开启后生图结果将使用 Markdown 语法返回图片内容<br>
+                            开启此项需要客户端支持渲染 Markdown
+                        </div>
+                        <a-switch v-model:checked="formData.imageMarkdown" />
                     </div>
                 </a-col>
             </a-row>

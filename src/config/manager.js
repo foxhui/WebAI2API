@@ -47,7 +47,8 @@ export function getServerConfig() {
         port: config.server?.port || 3000,
         authToken: config.server?.auth || '',
         keepaliveMode: config.server?.keepalive?.mode || 'comment',
-        logLevel: config.logLevel || 'info'
+        logLevel: config.logLevel || 'info',
+        imageMarkdown: config.server?.imageMarkdown || false
     };
 }
 
@@ -67,6 +68,7 @@ export function saveServerConfig(data) {
         config.server.keepalive.mode = data.keepaliveMode;
     }
     if (data.logLevel !== undefined) config.logLevel = data.logLevel;
+    if (data.imageMarkdown !== undefined) config.server.imageMarkdown = data.imageMarkdown;
 
     writeConfig(config);
 }

@@ -13,6 +13,8 @@ server:
     # "comment": (推荐) 发送 :keepalive 注释，不污染数据
     # "content": (备用) 发送空 delta，仅当客户端必须收到 JSON 包才重置超时时使用
     mode: "comment"
+  # 图片生成结果返回 Markdown 格式
+  imageMarkdown: false
 
 backend:
   # ========================================

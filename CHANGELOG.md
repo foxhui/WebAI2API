@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **WebUI**
   - Gemini 和 ChatGPT 的临时对话模式开关（现可以在适配器设置中单独开关）
 
+- **服务器**
+  - 支持开启图片生成结果使用 Markdown 格式返回
+
 ## [3.6.6] - 2026-04-12
 
 ### 🐛 Fixed
