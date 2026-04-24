@@ -8,6 +8,7 @@ import { logger } from '../../../utils/logger.js';
 import { ERROR_CODES } from '../../errors.js';
 import { sendJson, sendApiError } from '../../respond.js';
 import { parseRequest } from './parse.js';
+import { createResponsesHandler } from './responses.js';
 
 /**
  * 创建 OpenAI API 路由处理器
@@ -24,6 +25,9 @@ export function createOpenAIRouter(context) {
         imageLimit,
         queueManager
     } = context;
+
+    // 创建 Responses API 处理器
+    const handleResponses = createResponsesHandler(context);
 
     /**
      * 处理 GET /v1/models
@@ -167,6 +171,8 @@ export function createOpenAIRouter(context) {
             await handleCookies(res, requestId, workerName, domain);
         } else if (req.method === 'POST' && pathname.startsWith('/chat/completions')) {
             await handleChatCompletions(req, res, requestId);
+        } else if (req.method === 'POST' && pathname === '/responses') {
+            await handleResponses(req, res, requestId);
         } else {
             res.writeHead(404);
             res.end();
