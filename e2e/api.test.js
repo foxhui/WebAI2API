@@ -290,7 +290,7 @@ test.describe('POST /v1/responses', () => {
 });
 
 test.describe('持续性对话', () => {
-    test('连续多次请求均成功（复用浏览器会话）', async () => {
+    test('连续多次请求均成功（继续同一对话）', async () => {
         const prompts = [
             'Reply with exactly: first',
             'Reply with exactly: second',
@@ -314,6 +314,39 @@ test.describe('持续性对话', () => {
 
             console.log(`[持续对话 ${i + 1}/${prompts.length}] 回复: ${body.choices[0].message.content.slice(0, 80)}`);
         }
+    });
+
+    test('对话上下文连续性（模型记住之前的消息）', async () => {
+        // 第一轮：告诉模型一个唯一标识
+        const uniqueId = `unicorn_${Date.now()}`;
+        const resp1 = await apiRequest('/v1/chat/completions', {
+            method: 'POST',
+            body: JSON.stringify({
+                model: MODEL,
+                messages: [{ role: 'user', content: `Remember this word: ${uniqueId}. Reply with exactly: remembered` }],
+                stream: false,
+            }),
+        });
+        expect(resp1.status).toBe(200);
+        const body1 = await resp1.json();
+        console.log(`[上下文 1/2] 回复: ${body1.choices[0].message.content.slice(0, 80)}`);
+
+        // 第二轮：问模型之前记住的词（不重复提示）
+        const resp2 = await apiRequest('/v1/chat/completions', {
+            method: 'POST',
+            body: JSON.stringify({
+                model: MODEL,
+                messages: [{ role: 'user', content: 'What word did I ask you to remember? Reply with only the word.' }],
+                stream: false,
+            }),
+        });
+        expect(resp2.status).toBe(200);
+        const body2 = await resp2.json();
+        const reply = body2.choices[0].message.content;
+        console.log(`[上下文 2/2] 回复: ${reply.slice(0, 80)}`);
+
+        // 验证模型记住了之前的词
+        expect(reply.toLowerCase()).toContain(uniqueId.toLowerCase());
     });
 
     test('Responses API 连续多次请求均成功', async () => {

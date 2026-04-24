@@ -146,36 +146,15 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
     const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
 
     try {
-        // 智能导航：如果已在 DeepSeek 页面，点击新对话按钮而非全页面导航
+        // 智能导航：如果已在 DeepSeek 对话页面，直接继续对话；否则导航到首页
         const currentUrl = page.url();
         const isOnDeepSeek = currentUrl.includes('chat.deepseek.com');
-        if (isOnDeepSeek) {
-            logger.info('适配器', '已在 DeepSeek 页面，点击新对话...', meta);
-            let clicked = false;
-            // 策略1: 查找新对话按钮 (中英文)
-            try {
-                const newChatBtn = await findByName(page, BTN_NEW_CHAT, 'button');
-                if (newChatBtn) {
-                    await newChatBtn.click();
-                    clicked = true;
-                    await sleep(500, 800);
-                }
-            } catch { /* 忽略 */ }
-            // 策略2: 查找链接到首页的新对话链接
-            if (!clicked) {
-                try {
-                    const newChatLink = page.locator(`a[href="${TARGET_URL}"]`).first();
-                    if (await newChatLink.count() > 0) {
-                        await newChatLink.click();
-                        clicked = true;
-                        await sleep(500, 800);
-                    }
-                } catch { /* 忽略 */ }
-            }
-            // 策略3: 回退到全页面导航
-            if (!clicked) {
-                await gotoWithCheck(page, TARGET_URL);
-            }
+        const isInConversation = isOnDeepSeek && currentUrl !== TARGET_URL && currentUrl !== TARGET_URL.slice(0, -1);
+        if (isInConversation) {
+            logger.info('适配器', '继续当前对话...', meta);
+        } else if (isOnDeepSeek) {
+            // 在首页但没有对话，直接使用
+            logger.info('适配器', '已在 DeepSeek 首页，开始新对话...', meta);
         } else {
             logger.info('适配器', '导航到 DeepSeek...', meta);
             await gotoWithCheck(page, TARGET_URL);
