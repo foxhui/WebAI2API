@@ -171,7 +171,25 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         // 3. 输入提示词
         logger.info('适配器', '输入提示词...', meta);
-        await safeClick(page, INPUT_SELECTOR, { bias: 'input' });
+        try {
+            await safeClick(page, INPUT_SELECTOR, { bias: 'input' });
+        } catch (clickErr) {
+            // 点击失败（对话过长导致 textarea 不可交互），尝试点击新对话按钮重置
+            logger.warn('适配器', `输入框点击失败，尝试重置对话: ${clickErr.message}`, meta);
+            try {
+                const newChatBtn = await findByName(page, BTN_NEW_CHAT, 'button');
+                if (newChatBtn) {
+                    await newChatBtn.click();
+                    await sleep(800, 1200);
+                    await waitForInput(page, INPUT_SELECTOR, { click: false });
+                    await safeClick(page, INPUT_SELECTOR, { bias: 'input' });
+                } else {
+                    throw clickErr; // 没有新对话按钮，抛出原始错误
+                }
+            } catch {
+                throw clickErr; // 重试失败，抛出原始错误
+            }
+        }
         await humanType(page, INPUT_SELECTOR, prompt);
         await sleep(300, 500);
 
