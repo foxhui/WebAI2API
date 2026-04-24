@@ -1,5 +1,6 @@
 /**
  * @fileoverview DeepSeek 文本生成适配器
+ * @description 支持 DeepSeek V4 快速模式/专家模式，深度思考和智能搜索
  */
 
 import {
@@ -18,20 +19,73 @@ import { logger } from '../../utils/logger.js';
 const TARGET_URL = 'https://chat.deepseek.com/';
 const INPUT_SELECTOR = 'textarea';
 
+// --- 模式名称 (中英文兼容) ---
+const MODE_QUICK = ['快速模式', 'Instant'];
+const MODE_EXPERT = ['专家模式', 'Expert'];
+
+// --- 功能按钮名称 (中英文兼容) ---
+const BTN_THINKING = ['深度思考', 'DeepThink'];
+const BTN_SEARCH = ['智能搜索', 'Search'];
+
 /**
- * 切换功能按钮状态
+ * 按名称列表查找并操作 Playwright locator (兼容中英文)
  * @param {import('playwright-core').Page} page - 页面对象
- * @param {string} buttonName - 按钮名称 (DeepThink / Search)
+ * @param {string[]} names - 名称列表 (中英文)
+ * @param {'radio'|'button'} role - 元素角色
+ * @returns {Promise<import('playwright-core').Locator|null>} 匹配的 locator 或 null
+ */
+async function findByName(page, names, role) {
+    for (const name of names) {
+        const locator = page.getByRole(role, { name });
+        if (await locator.count() > 0) return locator;
+    }
+    return null;
+}
+
+/**
+ * 切换模式 (快速模式 / 专家模式，兼容中英文)
+ * @param {import('playwright-core').Page} page - 页面对象
+ * @param {string[]} modeNames - 模式名称列表 (中英文)
+ * @param {object} meta - 日志元数据
+ * @returns {Promise<boolean>} 是否成功切换
+ */
+async function switchMode(page, modeNames, meta = {}) {
+    try {
+        const radio = await findByName(page, modeNames, 'radio');
+        if (!radio) {
+            logger.debug('适配器', `未找到模式选项: ${modeNames.join('/')}`, meta);
+            return false;
+        }
+
+        const isChecked = await radio.isChecked();
+        if (!isChecked) {
+            logger.info('适配器', `切换模式: -> ${modeNames[0]}`, meta);
+            await safeClick(page, radio, { bias: 'button' });
+            await sleep(500, 800);
+            return true;
+        } else {
+            logger.debug('适配器', `已是 ${modeNames[0]} 模式`, meta);
+            return true;
+        }
+    } catch (e) {
+        logger.warn('适配器', `切换模式 ${modeNames[0]} 失败: ${e.message}`, meta);
+        return false;
+    }
+}
+
+/**
+ * 切换功能按钮状态 (兼容中英文)
+ * @param {import('playwright-core').Page} page - 页面对象
+ * @param {string[]} buttonNames - 按钮名称列表 (中英文)
  * @param {boolean} targetState - 目标状态 (true=开启, false=关闭)
  * @param {object} meta - 日志元数据
  * @returns {Promise<boolean>} 是否成功切换
  */
-async function toggleButton(page, buttonName, targetState, meta = {}) {
+async function toggleButton(page, buttonNames, targetState, meta = {}) {
     try {
-        const btn = page.getByRole('button', { name: buttonName });
-        const btnCount = await btn.count();
-        if (btnCount === 0) {
-            logger.debug('适配器', `未找到 ${buttonName} 按钮`, meta);
+        const btn = await findByName(page, buttonNames, 'button');
+        if (!btn) {
+            logger.debug('适配器', `未找到按钮: ${buttonNames.join('/')}`, meta);
             return false;
         }
 
@@ -39,36 +93,41 @@ async function toggleButton(page, buttonName, targetState, meta = {}) {
         const isSelected = await btn.evaluate(el => el.classList.contains('ds-toggle-button--selected'));
 
         if (isSelected !== targetState) {
-            logger.info('适配器', `切换 ${buttonName}: ${isSelected} -> ${targetState}`, meta);
+            logger.info('适配器', `切换 ${buttonNames[0]}: ${isSelected} -> ${targetState}`, meta);
             await safeClick(page, btn, { bias: 'button' });
             await sleep(300, 500);
             return true;
         } else {
-            logger.debug('适配器', `${buttonName} 已是目标状态: ${targetState}`, meta);
+            logger.debug('适配器', `${buttonNames[0]} 已是目标状态: ${targetState}`, meta);
             return true;
         }
     } catch (e) {
-        logger.warn('适配器', `切换 ${buttonName} 失败: ${e.message}`, meta);
+        logger.warn('适配器', `切换 ${buttonNames[0]} 失败: ${e.message}`, meta);
         return false;
     }
 }
 
 /**
- * 配置模型功能 (thinking / search)
+ * 配置模型功能 (模式切换 + thinking / search，兼容中英文)
  * @param {import('playwright-core').Page} page - 页面对象
  * @param {object} modelConfig - 模型配置
  * @param {object} meta - 日志元数据
  */
 async function configureModel(page, modelConfig, meta = {}) {
+    const expert = modelConfig?.expert || false;
     const thinking = modelConfig?.thinking || false;
     const search = modelConfig?.search || false;
 
-    // 切换 DeepThink 状态
-    await toggleButton(page, 'DeepThink', thinking, meta);
+    // 切换模式 (快速模式 / 专家模式)
+    await switchMode(page, expert ? MODE_EXPERT : MODE_QUICK, meta);
     await sleep(200, 400);
 
-    // 切换 Search 状态
-    await toggleButton(page, 'Search', search, meta);
+    // 切换深度思考状态
+    await toggleButton(page, BTN_THINKING, thinking, meta);
+    await sleep(200, 400);
+
+    // 切换智能搜索状态
+    await toggleButton(page, BTN_SEARCH, search, meta);
     await sleep(200, 400);
 }
 
@@ -286,19 +345,25 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 export const manifest = {
     id: 'deepseek_text',
     displayName: 'DeepSeek (文本生成)',
-    description: '使用 DeepSeek 官网生成文本，支持 DeepThink 深度思考和 Search 搜索模式。需要已登录的 DeepSeek 账户。',
+    description: '使用 DeepSeek V4 官网生成文本，支持快速模式/专家模式、深度思考和智能搜索。需要已登录的 DeepSeek 账户。',
 
     // 入口 URL
     getTargetUrl(config, workerConfig) {
         return TARGET_URL;
     },
 
-    // 模型列表
+    // 模型列表 (DeepSeek V4)
     models: [
-        { id: 'deepseek-v3.2', imagePolicy: 'forbidden' },
-        { id: 'deepseek-v3.2-thinking', imagePolicy: 'forbidden', thinking: true },
-        { id: 'deepseek-v3.2-search', imagePolicy: 'forbidden', search: true },
-        { id: 'deepseek-v3.2-thinking-search', imagePolicy: 'forbidden', thinking: true, search: true },
+        // 快速模式 (deepseek-v4-flash)
+        { id: 'deepseek-v4-flash', imagePolicy: 'forbidden' },
+        { id: 'deepseek-v4-flash-thinking', imagePolicy: 'forbidden', thinking: true },
+        { id: 'deepseek-v4-flash-search', imagePolicy: 'forbidden', search: true },
+        { id: 'deepseek-v4-flash-thinking-search', imagePolicy: 'forbidden', thinking: true, search: true },
+        // 专家模式 (deepseek-v4-pro)
+        { id: 'deepseek-v4-pro', imagePolicy: 'forbidden', expert: true },
+        { id: 'deepseek-v4-pro-thinking', imagePolicy: 'forbidden', expert: true, thinking: true },
+        { id: 'deepseek-v4-pro-search', imagePolicy: 'forbidden', expert: true, search: true },
+        { id: 'deepseek-v4-pro-thinking-search', imagePolicy: 'forbidden', expert: true, thinking: true, search: true },
     ],
 
     // 无需导航处理器

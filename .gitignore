@@ -3,3 +3,5 @@ data/
 test/
 config.yaml
 camoufox/
+.env
+e2e/.env

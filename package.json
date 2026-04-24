@@ -9,7 +9,9 @@
 		"start": "node supervisor.js",
 		"genkey": "node scripts/genkey.js",
 		"init": "node scripts/init.js",
-		"postinstall": "node scripts/postinstall.js"
+		"postinstall": "node scripts/postinstall.js",
+		"test": "npx playwright test",
+		"test:manifest": "npx playwright test --grep 'Manifest'"
 	},
 	"imports": {
 		"#config": "./src/config/index.js",
@@ -31,5 +33,8 @@
 		"sharp": "^0.34.5",
 		"socks-proxy-agent": "^8.0.5",
 		"yaml": "^2.8.2"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.59.1"
 	}
 }
