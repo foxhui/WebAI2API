@@ -310,14 +310,14 @@ export const manifest = {
 
     // 模型列表
     models: [
-        { id: 'deepseek', imagePolicy: 'forbidden' },
-        { id: 'deepseek-thinking', imagePolicy: 'forbidden', thinking: true },
-        { id: 'deepseek-search', imagePolicy: 'forbidden', search: true },
-        { id: 'deepseek-thinking-search', imagePolicy: 'forbidden', thinking: true, search: true },
-        { id: 'deepseek-expert', imagePolicy: 'forbidden' },
-        { id: 'deepseek-thinking-expert', imagePolicy: 'forbidden', thinking: true },
-        { id: 'deepseek-search-expert', imagePolicy: 'forbidden', search: true },
-        { id: 'deepseek-thinking-search-expert', imagePolicy: 'forbidden', thinking: true, search: true },
+        { id: 'deepseek', imagePolicy: 'forbidden', type: 'text' },
+        { id: 'deepseek-thinking', imagePolicy: 'forbidden', thinking: true, type: 'text' },
+        { id: 'deepseek-search', imagePolicy: 'forbidden', search: true, type: 'text' },
+        { id: 'deepseek-thinking-search', imagePolicy: 'forbidden', thinking: true, search: true, type: 'text' },
+        { id: 'deepseek-expert', imagePolicy: 'forbidden', type: 'text' },
+        { id: 'deepseek-thinking-expert', imagePolicy: 'forbidden', thinking: true, type: 'text' },
+        { id: 'deepseek-search-expert', imagePolicy: 'forbidden', search: true, type: 'text' },
+        { id: 'deepseek-thinking-search-expert', imagePolicy: 'forbidden', thinking: true, search: true, type: 'text' },
     ],
 
     // 无需导航处理器
