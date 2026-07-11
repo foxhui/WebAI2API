@@ -307,7 +307,13 @@ class AdapterRegistry {
             return 'image';
         }
 
-        const model = adapter.models.find(m => m.id === modelKey);
+        let actualModelKey = modelKey;
+        if (modelKey.includes('/')) {
+            const [, extracted] = modelKey.split('/', 2);
+            actualModelKey = extracted;
+        }
+
+        const model = adapter.models.find(m => m.id === actualModelKey);
         return model?.type || 'image';
     }
 
