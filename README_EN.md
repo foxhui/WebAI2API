@@ -1,9 +1,72 @@
-# WebAI2API
+# WebAI2API-Agent
 
 [简体中文](README.md) | English
 
-> [!NOTE]
-> This English version is translated by **Gemini 3 Flash**.
+## Agent / Tool Calling edition
+
+This repository is an Agent-ready fork of [foxhui/WebAI2API](https://github.com/foxhui/WebAI2API). It keeps the original browser adapters, browser pool, queue, WebUI, and legacy OpenAI-compatible chat path, while adding a compatibility layer for clients such as Codex and OpenClaw. The original author attribution and MIT license are retained.
+
+The added layer preserves `tools`, `tool_choice`, `tool_calls`, `tool_call_id`, tool results, and cross-request Responses state. Requests are normalized into a Universal Agent IR, routed through a model-family strategy/parser, and converted back to standard Chat Completions or Responses objects. WebAI2API never executes shell, file, browser, or MCP tools; the Agent client remains responsible for execution, authorization, and sandboxing.
+
+### Implemented
+
+- `POST /v1/chat/completions` with `tools`, `tool_choice`, `parallel_tool_calls`, assistant `tool_calls`, and `role: tool`.
+- Minimal `POST /v1/responses` with `function_call`, `function_call_output`, `call_id`, `previous_response_id`, and bounded in-memory state.
+- Shared Universal Agent IR, JSON Schema/state validation, call IDs, multi-turn tool results, and strategy/parser registries.
+- OpenAI-like, Qwen Hermes, Qwen3-Coder, Gemini-like, Anthropic-like, and generic tagged JSON strategies. Native pass-through is an extension point, not a blanket claim of native support.
+- Buffered Agent SSE conversion: complete web output is collected and validated before a stable protocol event is emitted.
+- Agent mode is disabled by default; ordinary chat remains on the legacy path.
+
+### Verification boundary
+
+| Level | Evidence |
+| --- | --- |
+| Verified | `npm test` 46/46, including legacy chat, Chat Agent, Responses, SSE, queue, and parser fixtures |
+| Verified | Standalone Codex CLI loop through the production port 3000: real failing test, read, edit, retest, with `CODEX_PRODUCTION_3000_OK` on successful runs |
+| Verified | Isolated OpenClaw profile/workspace loop with six real `exec`/`read`/`edit` calls and a successful repair; this is Canary evidence, not a claim about every production account |
+| Verified web path | The real loops used the ChatGPT web adapter; `gpt-instant` and `gpt-thinking` were used in the recorded runs |
+| Theory/code-level only | Qwen, Gemini, Anthropic strategies and other OpenAI-compatible Agent clients |
+| Not verified | Claude Code, real Qwen/Gemini/Claude web tool loops, every inherited adapter in Agent mode, and parallel execution |
+
+Protocol fixtures are not evidence that every web account has passed an Agent loop. Use `GET /v1/models` and verify tool calls, tool results, and side effects on your own deployment.
+
+### Enable Agent mode
+
+```yaml
+agentCompatibility:
+  enabled: true
+  nativePassThrough: false
+  temporaryChat: true
+  forceInitialToolChoice: false
+  forceSyntheticToolChoiceTurns: 0
+  maxSyntheticToolRetries: 1
+  retrySyntheticAutoFinal: false
+  maxSyntheticInstructionChars: 12000
+```
+
+### Quick start and client endpoints
+
+```bash
+git clone https://github.com/passionsugar/WebAI2API.git
+cd WebAI2API
+corepack enable
+pnpm install
+npm run init
+npm run genkey
+npm start -- -xvfb -vnc
+```
+
+If pnpm 11 reports `ERR_PNPM_IGNORED_BUILDS`, approve the two native build scripts and rerun the install: `pnpm approve-builds better-sqlite3 sharp`, then `pnpm install`.
+
+The first start creates `data/config.yaml` from `config.example.yaml`; put the generated key into `server.auth`. Point Codex's Responses provider at `http://127.0.0.1:3000/v1` with `wire_api = "responses"`. Configure OpenClaw's OpenAI-compatible provider with the same base URL, an environment-injected key, and a model returned by `/v1/models`; exact config keys vary by OpenClaw version.
+
+The current `docker-compose.yaml` still uses the upstream `foxhui/webai-2api:latest` image. Build the local `Dockerfile` if you need the Agent code.
+
+### Limitations
+
+Synthetic tool calling is prompt/parser compatibility, not native function calling. Web DOM/SSE changes, model behavior, account limits, and login state can affect it. Agent SSE is buffered, Responses state is in-process memory, and WebAI2API never executes client tools. Claude Code, real Qwen/Gemini/Claude web loops, and other clients remain unverified.
+
+See [AGENT_COMPATIBILITY_TUTORIAL.md](AGENT_COMPATIBILITY_TUTORIAL.md) for architecture details and [AGENT_ACCEPTANCE_20260816.md](AGENT_ACCEPTANCE_20260816.md) for the evidence boundary.
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/296a518e-c42b-4e39-8ff6-9b4381ed4f6e" width="49%" />

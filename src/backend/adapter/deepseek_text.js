@@ -61,7 +61,9 @@ async function toggleButton(page, buttonName, targetState, meta = {}) {
  */
 async function configureModel(page, modelConfig, meta = {}) {
     const thinking = modelConfig?.thinking || false;
-    const search = modelConfig?.search || false;
+    // Agent tools are executed by the external client. Keep DeepSeek's web Search
+    // disabled in Agent mode so its private web tool cannot be mistaken for a Tool Result.
+    const search = meta.agentMode ? false : (modelConfig?.search || false);
 
     // 切换 DeepThink 状态
     await toggleButton(page, 'DeepThink', thinking, meta);
@@ -310,14 +312,14 @@ export const manifest = {
 
     // 模型列表
     models: [
-        { id: 'deepseek', imagePolicy: 'forbidden' },
-        { id: 'deepseek-thinking', imagePolicy: 'forbidden', thinking: true },
-        { id: 'deepseek-search', imagePolicy: 'forbidden', search: true },
-        { id: 'deepseek-thinking-search', imagePolicy: 'forbidden', thinking: true, search: true },
-        { id: 'deepseek-expert', imagePolicy: 'forbidden' },
-        { id: 'deepseek-thinking-expert', imagePolicy: 'forbidden', thinking: true },
-        { id: 'deepseek-search-expert', imagePolicy: 'forbidden', search: true },
-        { id: 'deepseek-thinking-search-expert', imagePolicy: 'forbidden', thinking: true, search: true },
+        { id: 'deepseek', type: 'text', imagePolicy: 'forbidden' },
+        { id: 'deepseek-thinking', type: 'text', imagePolicy: 'forbidden', thinking: true },
+        { id: 'deepseek-search', type: 'text', imagePolicy: 'forbidden', search: true },
+        { id: 'deepseek-thinking-search', type: 'text', imagePolicy: 'forbidden', thinking: true, search: true },
+        { id: 'deepseek-expert', type: 'text', imagePolicy: 'forbidden' },
+        { id: 'deepseek-thinking-expert', type: 'text', imagePolicy: 'forbidden', thinking: true },
+        { id: 'deepseek-search-expert', type: 'text', imagePolicy: 'forbidden', search: true },
+        { id: 'deepseek-thinking-search-expert', type: 'text', imagePolicy: 'forbidden', thinking: true, search: true },
     ],
 
     // 无需导航处理器

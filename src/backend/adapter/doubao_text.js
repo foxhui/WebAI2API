@@ -50,6 +50,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         await waitForInput(page, inputLocator, { click: false });
 
         // 2. 选择模型
+        const shouldSelectModel = modelId !== 'seed';
         const modelMenuName = MODEL_MENU_MAP[modelId] || MODEL_MENU_MAP['seed'];
         logger.debug('适配器', `选择模型: ${modelId} -> ${String(modelMenuName)}`, meta);
         await sleep(300, 500);
@@ -67,7 +68,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             selectorExists = false;
         }
 
-        if (selectorExists) {
+        if (shouldSelectModel && selectorExists) {
             const menuItem = page.getByRole('menuitem', { name: modelMenuName });
             // 点击模型选择按钮，最多重试 3 次（菜单偶尔不弹出）
             for (let attempt = 1; attempt <= 3; attempt++) {
@@ -187,11 +188,11 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             page.on('response', handleResponse);
         });
 
-        // 6. 点击发送
-        const sendBtn = page.locator('button#flow-end-msg-send');
-        await sendBtn.waitFor({ state: 'visible', timeout: 10000 });
-        logger.info('适配器', '点击发送...', meta);
-        await safeClick(page, sendBtn, { bias: 'button' });
+        // 6. 发送
+        logger.info('适配器', '发送消息...', meta);
+        await inputLocator.press('Control+Enter').catch(async () => {
+            await inputLocator.press('Enter');
+        });
 
         // 7. 等待响应
         logger.info('适配器', '等待生成结果...', meta);

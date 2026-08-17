@@ -8,8 +8,12 @@ import {
     sendJson,
     sendSse,
     sendSseDone,
+    sendSseComment,
     sendHeartbeat,
     sendApiError,
+    sendAgentError,
+    sendOpenAIChatAgentResponse,
+    sendOpenAIResponsesAgentResponse,
     buildChatCompletion,
     buildChatCompletionChunk
 } from './respond.js';
@@ -55,7 +59,14 @@ import { createRecord, updateRecord, processResponseMedia } from '../utils/histo
  */
 export function createQueueManager(queueConfig, callbacks) {
     const { maxConcurrent, queueBuffer, keepaliveMode } = queueConfig;
-    const { initBrowser, generate, config, navigateToMonitor, getCookies } = callbacks;
+    const {
+        initBrowser,
+        generate,
+        config,
+        navigateToMonitor,
+        getCookies,
+        conversationStore
+    } = callbacks;
 
     // 计算有效队列大小：0 表示不限制，否则为 maxConcurrent + buffer
     const effectiveQueueSize = queueBuffer === 0 ? Infinity : (maxConcurrent + queueBuffer);
@@ -94,7 +105,18 @@ export function createQueueManager(queueConfig, callbacks) {
      * @param {TaskContext} task - 任务上下文
      */
     async function processTask(task) {
-        const { res, prompt, imagePaths, modelId, modelName, id, isStreaming, reasoning } = task;
+        const {
+            res,
+            prompt,
+            imagePaths,
+            modelId,
+            modelName,
+            id,
+            isStreaming,
+            reasoning,
+            agentRequest,
+            responseId
+        } = task;
         const startTime = Date.now();
 
         logger.info('服务器', '[队列] 开始处理任务', { id, remaining: queue.length });
@@ -105,7 +127,8 @@ export function createQueueManager(queueConfig, callbacks) {
                 id,
                 modelId,
                 modelName,
-                prompt,
+                // Synthetic Agent prompts contain tool schemas/results and must not be persisted verbatim.
+                prompt: agentRequest ? '[agent request redacted]' : prompt,
                 inputImages: imagePaths,
                 isStreaming,
                 status: 'pending'
@@ -122,7 +145,11 @@ export function createQueueManager(queueConfig, callbacks) {
                     clearInterval(heartbeatInterval);
                     return;
                 }
-                sendHeartbeat(res, keepaliveMode, modelName);
+                if (agentRequest?.protocol === 'openai_responses') {
+                    sendSseComment(res);
+                } else {
+                    sendHeartbeat(res, keepaliveMode, modelName);
+                }
             }, 3000);
         }
 
@@ -133,7 +160,11 @@ export function createQueueManager(queueConfig, callbacks) {
             }
 
             // 调用核心生图逻辑 (通过 Pool 分发)
-            const result = await generate(poolContext, prompt, imagePaths, modelId, { id, reasoning });
+            const result = await generate(poolContext, prompt, imagePaths, modelId, {
+                id,
+                reasoning,
+                agentRequest: agentRequest || null
+            });
 
             // 清除心跳
             if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -151,12 +182,23 @@ export function createQueueManager(queueConfig, callbacks) {
                 } catch (e) {
                     logger.debug('服务器', `更新历史记录失败: ${e.message}`);
                 }
-                sendApiError(res, {
-                    code: ERROR_CODES.GENERATION_FAILED,
-                    message: result.error,
-                    status: result.retryable ? 503 : 502,
-                    isStreaming
-                });
+                if (agentRequest) {
+                    const agentFailure = new Error(result.error);
+                    agentFailure.code = result.errorCode || 'AGENT_PROVIDER_ERROR';
+                    agentFailure.status = result.retryable ? 503 : (result.status || 502);
+                    agentFailure.type = 'server_error';
+                    sendAgentError(res, agentFailure, {
+                        isStreaming,
+                        protocol: agentRequest.protocol
+                    });
+                } else {
+                    sendApiError(res, {
+                        code: ERROR_CODES.GENERATION_FAILED,
+                        message: result.error,
+                        status: result.retryable ? 503 : 502,
+                        isStreaming
+                    });
+                }
                 return;
             }
 
@@ -165,7 +207,13 @@ export function createQueueManager(queueConfig, callbacks) {
             let reasoningContent = null;  // 思考过程内容
             let historyResponseText = '';  // 历史记录中存储的文本（不含 base64）
 
-            if (result.image) {
+            if (agentRequest) {
+                const toolCalls = result.agentTurn?.items?.filter(item => item.type === 'tool_call') || [];
+                finalContent = result.text || '';
+                historyResponseText = toolCalls.length > 0
+                    ? `[agent tool calls: ${toolCalls.map(call => call.name).join(', ')}]`
+                    : finalContent;
+            } else if (result.image) {
                 // 判断是否开启 Markdown 格式
                 const imageMarkdown = config?.server?.imageMarkdown || false;
                 if (imageMarkdown) {
@@ -181,7 +229,7 @@ export function createQueueManager(queueConfig, callbacks) {
             }
 
             // 提取思考过程（如果有）
-            if (result.reasoning) {
+            if (result.reasoning && !agentRequest) {
                 reasoningContent = result.reasoning;
             }
 
@@ -189,7 +237,10 @@ export function createQueueManager(queueConfig, callbacks) {
             await incrementSuccess();
 
             // 更新历史记录（异步处理媒体，不阻塞响应）
-            processResponseMedia(result, id).then(responseMedia => {
+            const responseMediaPromise = agentRequest
+                ? Promise.resolve(null)
+                : processResponseMedia(result, id);
+            responseMediaPromise.then(responseMedia => {
                 try {
                     updateRecord(id, {
                         status: 'success',
@@ -207,7 +258,24 @@ export function createQueueManager(queueConfig, callbacks) {
 
             // 发送成功响应
             logger.info('服务器', '准备发送响应...', { id, isStreaming, contentLength: finalContent.length, hasReasoning: !!reasoningContent });
-            if (isStreaming) {
+            if (agentRequest?.protocol === 'openai_responses') {
+                if (conversationStore && responseId && result.agentTurn) {
+                    conversationStore.save(responseId, {
+                        model: agentRequest.model,
+                        instructions: agentRequest.instructions,
+                        items: [...agentRequest.items, ...result.agentTurn.items],
+                        tools: agentRequest.tools,
+                        toolChoice: agentRequest.toolChoice,
+                        parallelToolCalls: agentRequest.parallelToolCalls,
+                        execution: result.agentExecution || null
+                    });
+                }
+                sendOpenAIResponsesAgentResponse(res, agentRequest, result.agentTurn, responseId, { id: responseId });
+                logger.info('服务器', 'Responses Agent 响应已发送', { id, responseId });
+            } else if (agentRequest?.protocol === 'openai_chat') {
+                sendOpenAIChatAgentResponse(res, agentRequest, result.agentTurn, { id: `chatcmpl-${id}` });
+                logger.info('服务器', 'Chat Agent 响应已发送', { id });
+            } else if (isStreaming) {
                 const chunk = buildChatCompletionChunk(finalContent, modelName, 'stop', reasoningContent);
                 sendSse(res, chunk);
                 sendSseDone(res);
@@ -234,11 +302,18 @@ export function createQueueManager(queueConfig, callbacks) {
                 logger.debug('服务器', `更新历史记录失败: ${e.message}`);
             }
             logger.error('服务器', '任务处理失败', { id, error: err.message });
-            sendApiError(res, {
-                code: ERROR_CODES.INTERNAL_ERROR,
-                message: err.message,
-                isStreaming
-            });
+            if (agentRequest) {
+                sendAgentError(res, err, {
+                    isStreaming,
+                    protocol: agentRequest.protocol
+                });
+            } else {
+                sendApiError(res, {
+                    code: ERROR_CODES.INTERNAL_ERROR,
+                    message: err.message,
+                    isStreaming
+                });
+            }
         }
     }
 

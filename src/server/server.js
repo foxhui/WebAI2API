@@ -24,6 +24,7 @@ runPreflight();
 const { getBackend } = await import('../backend/index.js');
 const { logger } = await import('../utils/logger.js');
 const { createQueueManager, createGlobalRouter } = await import('./index.js');
+const { ConversationStore } = await import('../agent/index.js');
 const { isUnderSupervisor } = await import('../utils/ipc.js');
 const { loadTodayStats } = await import('../utils/stats.js');
 const { initHistoryDb } = await import('../utils/history.js');
@@ -71,6 +72,12 @@ const QUEUE_BUFFER = config.queue?.queueBuffer ?? 2;
 /** @type {number} 图片数量限制 */
 const IMAGE_LIMIT = config.queue?.imageLimit || 5;
 
+// Responses API 的短期状态只保存在内存中，避免把工具参数/结果写入用户数据卷。
+const conversationStore = new ConversationStore({
+    ttlMs: config.agentCompatibility?.conversationTtlMs,
+    maxEntries: config.agentCompatibility?.maxStoredResponses
+});
+
 // ==================== 创建服务组件 ====================
 
 /**
@@ -91,7 +98,8 @@ const queueManager = createQueueManager(
             : null,
         getCookies: backend.getCookies
             ? (workerName, domain) => backend.getCookies(workerName, domain)
-            : null
+            : null,
+        conversationStore
     }
 );
 
@@ -121,6 +129,7 @@ const handleRequest = createGlobalRouter({
     tempDir: TEMP_DIR,
     imageLimit: IMAGE_LIMIT,
     queueManager,
+    conversationStore,
     config,
     loginMode: isLoginMode,
     getSafeMode: () => ({ enabled: safeMode, reason: safeModeReason })

@@ -122,6 +122,30 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                         modified = true;
                     }
 
+                    // Native Agent tool pass-through is opt-in. Synthetic requests deliberately
+                    // stay prompt-only so provider tools cannot be confused with Agent tools.
+                    if (meta.agentMode && meta.agentNativeRequest) {
+                        const nativeRequest = meta.agentNativeRequest;
+                        postData.tools = (nativeRequest.tools || []).map(tool => ({
+                            type: 'function',
+                            function: {
+                                name: tool.name,
+                                description: tool.description,
+                                parameters: tool.parameters,
+                                strict: tool.strict
+                            }
+                        }));
+                        postData.parallel_tool_calls = nativeRequest.parallelToolCalls === true;
+                        postData.tool_choice = nativeRequest.toolChoice?.mode === 'function'
+                            ? { type: 'function', function: { name: nativeRequest.toolChoice.name } }
+                            : nativeRequest.toolChoice?.mode || 'auto';
+                        modified = true;
+                        logger.info('适配器', '已注入 Native Agent tools 请求字段', {
+                            ...meta,
+                            toolCount: postData.tools.length
+                        });
+                    }
+
                     if (modified) {
                         await route.continue({ postData: JSON.stringify(postData) });
                         return;
@@ -170,7 +194,8 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         logger.debug('适配器', `收到响应，长度: ${content.length}`, meta);
 
         // 解析 EventStream 格式响应
-        let fullText = '';
+            let fullText = '';
+            const nativeToolCalls = new Map();
         try {
             const lines = content.split('\n');
 
@@ -196,6 +221,32 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                                 if (content && content.trim()) {
                                     fullText += content;
                                 }
+
+                                for (const toolCall of (choice?.delta?.tool_calls || [])) {
+                                    const index = toolCall.index ?? nativeToolCalls.size;
+                                    const current = nativeToolCalls.get(index) || {
+                                        id: toolCall.id,
+                                        type: toolCall.type || 'function',
+                                        function: { name: '', arguments: '' }
+                                    };
+                                    if (toolCall.id) current.id = toolCall.id;
+                                    if (toolCall.function?.name) current.function.name += toolCall.function.name;
+                                    if (toolCall.function?.arguments) current.function.arguments += toolCall.function.arguments;
+                                    nativeToolCalls.set(index, current);
+                                }
+
+                                // Some OpenAI-compatible routes return a complete message in a final chunk.
+                                for (const toolCall of (choice?.message?.tool_calls || [])) {
+                                    const index = toolCall.index ?? nativeToolCalls.size;
+                                    nativeToolCalls.set(index, {
+                                        id: toolCall.id,
+                                        type: toolCall.type || 'function',
+                                        function: {
+                                            name: toolCall.function?.name || '',
+                                            arguments: toolCall.function?.arguments || ''
+                                        }
+                                    });
+                                }
                             }
                         }
                     } catch (parseErr) {
@@ -209,7 +260,21 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             return { error: `解析响应失败: ${e.message}` };
         }
 
-        if (fullText) {
+            if (nativeToolCalls.size > 0) {
+                logger.info('适配器', `解析到 Native Agent tool_calls (${nativeToolCalls.size})`, meta);
+                return {
+                    nativeAgentOutput: {
+                        choices: [{
+                            message: {
+                                role: 'assistant',
+                                content: fullText || null,
+                                tool_calls: [...nativeToolCalls.values()]
+                            }
+                        }]
+                    }
+                };
+            }
+            if (fullText) {
             logger.info('适配器', `获取文本成功，长度: ${fullText.length}`, meta);
             return { text: fullText };
         } else {
@@ -237,6 +302,11 @@ export const manifest = {
     id: 'zenmux_ai_text',
     displayName: 'Zenmux AI (文本生成)',
     description: '使用 Zenmux AI 平台生成文本，支持多种大语言模型。需要已登录的 ZenMux 账户。',
+
+    capabilities: {
+        nativeToolCalling: true,
+        nativeToolCallFormat: 'openai_chat_completions'
+    },
 
     // 无需额外配置
     configSchema: [],

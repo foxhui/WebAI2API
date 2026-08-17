@@ -1,6 +1,32 @@
 # 日志等级: debug | info | warn | error
 logLevel: info
 
+# OpenAI Agent Tool Calling / Responses 兼容层。
+# 默认关闭，开启后只有携带 tools/tool results 的请求进入 Agent 路径；普通聊天仍走旧路径。
+agentCompatibility:
+  enabled: false
+  conversationTtlMs: 900000
+  maxStoredResponses: 500
+  # 仅在真实验证目标 Provider 的原生 tools 请求后开启；否则自动使用模型专属 Synthetic Strategy。
+  nativePassThrough: false
+  # Agent Synthetic 回合默认使用临时会话，避免网页根路径复用旧线程；认证状态不支持时可设为 false。
+  temporaryChat: true
+  # 某些网页模型在 AUTO 下会拒绝首个明确的工具步骤；仅对 Synthetic 首轮可选地强制 REQUIRED。
+  # 保持 false 可严格保留客户端的 tool_choice=auto 语义。
+  forceInitialToolChoice: false
+  # 可选：当首步必须是某个工具时填写名称（例如 shell_command）；不填写则只强制任一工具调用。
+  forceInitialToolName: null
+  # 可选：为有明确上限的自动化流程，在前 N 个工具回合强制继续；N=0 关闭。
+  forceSyntheticToolChoiceTurns: 0
+  # 可选：当强制工具回合仍返回普通文本时，有限重试的次数（最多 3 次）。
+  # 仍未产生真实工具调用就返回明确的 AGENT_TOOL_CALL_REQUIRED 错误，不伪造调用。
+  maxSyntheticToolRetries: 0
+  # 可选：在 AUTO 首轮返回普通文本时，有限重试并再次要求工具协议；默认不改变 AUTO 语义。
+  retrySyntheticAutoFinal: false
+  # Synthetic 网页提示词中的 system/developer 指令上限；用户消息和工具结果不裁剪。
+  # 保留头尾，避免 OpenClaw 注入的大段重复上下文触发网页编辑器长度边界。
+  maxSyntheticInstructionChars: 12000
+
 server:
   # 监听端口
   port: 3000
@@ -99,7 +125,7 @@ backend:
       #   proxy:
       #     enable: true
       #     type: socks5
-      #     host: 192.168.1.10
+      #     host: proxy.example.invalid
       #     port: 1080
       #     user: myuser               # 可选认证
       #     passwd: mypassword

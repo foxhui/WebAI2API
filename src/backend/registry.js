@@ -312,6 +312,22 @@ class AdapterRegistry {
     }
 
     /**
+     * 获取 Agent Tool Calling 能力元数据。
+     * Transport adapter 与 model capability 分开记录，供策略选择器和诊断使用。
+     */
+    getCapabilities(adapterId, modelKey) {
+        const adapter = this.getAdapter(adapterId);
+        const model = adapter?.models?.find(m => m.id === modelKey);
+        return {
+            nativeToolCalling: adapter?.capabilities?.nativeToolCalling === true || model?.capabilities?.nativeToolCalling === true,
+            nativeToolCallFormat: model?.capabilities?.nativeToolCallFormat || adapter?.capabilities?.nativeToolCallFormat || null,
+            toolStrategyHint: model?.capabilities?.toolStrategyHint || adapter?.capabilities?.toolStrategyHint || null,
+            providerSearch: model?.search === true,
+            opaqueState: model?.capabilities?.opaqueState || adapter?.capabilities?.opaqueState || null
+        };
+    }
+
+    /**
      * 聚合所有适配器的模型列表
      * @returns {object}
      */

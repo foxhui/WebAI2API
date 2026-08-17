@@ -8,8 +8,13 @@ export {
     sendJson,
     sendSse,
     sendSseDone,
+    sendSseEvent,
+    sendSseComment,
     sendHeartbeat,
     sendApiError,
+    sendAgentError,
+    sendOpenAIChatAgentResponse,
+    sendOpenAIResponsesAgentResponse,
     buildChatCompletion,
     buildChatCompletionChunk
 } from './respond.js';

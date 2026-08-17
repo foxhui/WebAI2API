@@ -1,6 +1,112 @@
-# WebAI2API
+# WebAI2API-Agent
 
 简体中文 | [English](README_EN.md)
+
+## Agent / Tool Calling 增强版
+
+本仓库是基于 [foxhui/WebAI2API](https://github.com/foxhui/WebAI2API) 的 Agent-ready fork。它保留原版网页适配器、浏览器池和普通 OpenAI-compatible API，并增加一层面向 Codex、OpenClaw 等客户端的工具调用兼容层。原作者署名和 MIT 许可证保持不变。
+
+普通聊天只需要消息和文本；Agent 还需要 `tools`、`tool_choice`、`tool_calls`、`tool_call_id`、工具结果和跨请求状态。本分支先把 Chat Completions 或 Responses 请求归一化为 Universal Agent IR，再按适配器和模型族选择 Synthetic 策略/解析器，最后输出标准 `tool_calls` 或 `function_call`。WebAI2API 不执行客户端工具，shell、文件、浏览器和 MCP 始终由 Agent 自己执行。
+
+### 已实现的接口与能力
+
+- `POST /v1/chat/completions`：`tools`、`tool_choice`、`parallel_tool_calls`、assistant `tool_calls`、`role: tool`。
+- `POST /v1/responses`：`function_call`、`function_call_output`、`call_id`、`previous_response_id` 和受 TTL/数量限制的内存状态。
+- Universal Agent IR、JSON Schema/调用状态校验、唯一 call ID、多轮 tool result 回传和策略/解析器注册表。
+- OpenAI-like、Qwen Hermes、Qwen3-Coder、Gemini-like、Anthropic-like 和 Generic tagged JSON 策略；native pass-through 只作为能力扩展位，未默认宣称原生可用。
+- Agent 工具响应采用“完整收集网页输出 → 解析校验 → 输出稳定 SSE”的缓冲策略，不在参数尚未完整时执行工具。
+- Agent 默认关闭，普通 legacy 聊天仍走原路径；ChatGPT 网页 Agent 回合可使用临时会话、SSE 观察、DOM 恢复和空响应有界重试。
+
+### 数据流
+
+```text
+Agent → OpenAI Chat/Responses + tools → Universal Agent IR → 网页模型
+      ← 标准 tool_calls/function_call ← 工具意图解析 ←
+Agent 本地执行真实工具 → tool result/function_call_output → WebAI2API → 模型继续推理
+```
+
+### 与原版的差异
+
+| 功能 | 原版 | 当前分支 |
+| --- | --- | --- |
+| 普通聊天、浏览器池、队列和 WebUI | 支持 | 保留 legacy 路径 |
+| `tools` / `tool_choice` 语义 | 非 Agent 主路径 | 归一化并严格校验 |
+| `tool_calls` / `function_call` | 非 Agent 主路径 | Chat 与 Responses 均可转换 |
+| 工具结果多轮回传 | 非 Agent 主路径 | Chat 使用 `role: tool`，Responses 使用 `previous_response_id` |
+| 模型专属策略和解析器 | 由适配器自行处理 | 通过策略/解析器注册表选择 |
+| 工具执行 | 不由 WebAI2API 负责 | 仍由 Agent 客户端负责 |
+
+### 支持边界（按证据分级）
+
+| 层级 | 结论 |
+| --- | --- |
+| 已验证 | `npm test` 46/46；legacy Chat、Chat Agent、Responses、SSE、队列和策略解析 fixture 通过 |
+| 已验证 | 独立 Codex CLI 经生产 3000 Responses 闭环：真实失败测试、读取、修改、复测均完成，stdout 含 `CODEX_PRODUCTION_3000_OK` |
+| 已验证 | 隔离 OpenClaw profile/workspace 闭环：6 次真实 `exec`/`read`/`edit` 调用、失败修复后复测成功；这是 Canary 证据，不等同于每个生产账户均已验证 |
+| 已验证网页路径 | Codex 生产复测使用 ChatGPT `gpt-thinking`；此前 Canary 记录还使用过 `gpt-instant` |
+| 理论兼容 | Qwen Hermes/Qwen3-Coder、Gemini-like、Anthropic-like 及其他 OpenAI-compatible Agent |
+| 未验证 | Claude Code、真实 Qwen/Gemini/Claude 网页工具闭环、所有原版适配器的 Agent 兼容、并行工具执行 |
+
+协议 fixture 通过不等于每个网页账户都已通过。请用 `GET /v1/models` 查看本机实际模型，并单独验证工具调用、工具结果和磁盘副作用。
+
+### 启用 Agent 层
+
+Agent 层默认关闭；在个人的 `data/config.yaml` 中按需开启：
+
+```yaml
+agentCompatibility:
+  enabled: true
+  nativePassThrough: false
+  temporaryChat: true
+  forceInitialToolChoice: false
+  # 对当前 Codex 网页工具链，可在确认网页账号已登录后使用：
+  # forceInitialToolName: shell_command
+  forceSyntheticToolChoiceTurns: 0
+  maxSyntheticToolRetries: 1
+  retrySyntheticAutoFinal: false
+  maxSyntheticInstructionChars: 12000
+```
+
+### Agent 示例
+
+先通过 `GET /v1/models` 选择实际模型。以下 key、模型名和路径都是占位符：
+
+```bash
+curl http://127.0.0.1:3000/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"<model-from-v1-models>","messages":[{"role":"user","content":"读取项目版本"}],"tools":[{"type":"function","function":{"name":"read_file","description":"Read a UTF-8 file","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}}}],"tool_choice":"auto"}'
+```
+
+若返回 `message.tool_calls`，客户端执行工具后用相同的 `tool_call_id` 追加 `role: "tool"` 消息。Responses 客户端则提交 `function_call_output` 并携带上一次的 `previous_response_id`。兼容层不会替客户端执行任何工具。
+
+Codex 的核心配置值是 `wire_api = "responses"`、`base_url = "http://127.0.0.1:3000/v1"` 和从环境变量读取 API key；OpenClaw 使用其版本对应的 OpenAI-compatible provider 配置，填写同一个 base URL、环境变量 key 和 `/v1/models` 中的模型 ID。不同客户端配置键名会变化，不能把此说明当成固定配置文件。
+
+### 安装与启动
+
+```bash
+git clone https://github.com/passionsugar/WebAI2API.git
+cd WebAI2API
+corepack enable
+pnpm install
+npm run init
+npm run genkey
+npm start -- -xvfb -vnc
+```
+
+如果 pnpm 11 的供应链策略提示 `ERR_PNPM_IGNORED_BUILDS`，先批准项目需要的本地构建脚本，再重跑安装：`pnpm approve-builds better-sqlite3 sharp`、`pnpm install`。
+
+首次启动会从 `config.example.yaml` 创建 `data/config.yaml`；把 `npm run genkey` 输出的 key 写入 `server.auth`，再配置浏览器实例和登录状态。Dockerfile 会从当前源码构建；现有 `docker-compose.yaml` 仍引用原版 `foxhui/webai-2api:latest`，不会自动包含本分支 Agent 代码。
+
+### 已知限制
+
+- Synthetic tool calling 是提示与解析兼容，不等于网页模型原生 function calling；网页 DOM/SSE/风控变化可能导致失效。
+- Agent SSE 是缓冲式转换；Responses 状态保存在进程内存，重启或过期后旧 `response_id` 不再可用。
+- WebAI2API 不执行 shell、文件、浏览器或 MCP 工具；客户端必须自行负责授权、沙箱和错误结果回传。
+- `parallel_tool_calls` 受状态机和请求约束；本分支没有把并行执行器列为已验证能力。
+- Claude Code、真实 Qwen/Gemini/Claude 工具闭环和其他 Agent 客户端尚未逐一验收。
+
+详细协议/架构说明见 [AGENT_COMPATIBILITY_TUTORIAL.md](AGENT_COMPATIBILITY_TUTORIAL.md)，验收边界见 [AGENT_ACCEPTANCE_20260816.md](AGENT_ACCEPTANCE_20260816.md)。
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/296a518e-c42b-4e39-8ff6-9b4381ed4f6e" width="49%" />

@@ -5,6 +5,9 @@
 
 import fs from 'fs';
 import { logger } from '../../utils/logger.js';
+import {
+    executeAgentRequest
+} from '../../agent/index.js';
 import { initBrowserBase, createCursor } from '../engine/launcher.js';
 import { registry } from '../registry.js';
 import { tryGotoWithCheck } from '../utils/page.js';
@@ -396,6 +399,7 @@ export class Worker {
      * @private
      */
     async _generateWithFailover(ctx, prompt, paths, modelId, meta, failoverConfig = {}) {
+        const { agentRequest, ...safeMeta } = meta || {};
         const maxRetries = failoverConfig.maxRetries || 2;
         const candidateTypes = this._getCandidateTypes(modelId);
 
@@ -424,7 +428,7 @@ export class Worker {
             }
 
             if (i < maxAttempts - 1) {
-                logger.warn('工作池', `[${this.name}] ${type} 失败，尝试下一个适配器...`, { error: lastError, ...meta });
+                logger.warn('工作池', `[${this.name}] ${type} 失败，尝试下一个适配器...`, { error: lastError, ...safeMeta });
             }
         }
 
@@ -461,23 +465,54 @@ export class Worker {
      * @private
      */
     async _executeAdapter(ctx, type, modelId, prompt, paths, meta) {
+        const { agentRequest, ...safeMeta } = meta || {};
         // 检查 Worker 是否已初始化（浏览器崩溃后会被标记为 false）
         if (!this.initialized || !this.page || this.page.isClosed()) {
-            logger.info('工作池', `[${this.name}] 浏览器已断开，正在自动重新初始化...`, meta);
+            logger.info('工作池', `[${this.name}] 浏览器已断开，正在自动重新初始化...`, safeMeta);
             try {
                 await this._reinit();
             } catch (e) {
-                logger.error('工作池', `[${this.name}] 重新初始化失败`, { error: e.message, ...meta });
-                return { error: `Worker 重新初始化失败: ${e.message}` };
+                logger.error('工作池', `[${this.name}] 重新初始化失败`, { error: e.message, ...safeMeta });
+                return agentRequest
+                    ? { error: `Worker 重新初始化失败: ${e.message}`, errorCode: 'AGENT_PROVIDER_ERROR', retryable: true }
+                    : { error: `Worker 重新初始化失败: ${e.message}` };
             }
         }
 
         const adapter = registry.getAdapter(type);
         if (!adapter) {
-            return { error: `适配器不存在: ${type}` };
+            return agentRequest
+                ? { error: `适配器不存在: ${type}`, errorCode: 'AGENT_PROVIDER_ERROR', retryable: false }
+                : { error: `适配器不存在: ${type}` };
         }
 
-        logger.info('工作池', `[${this.name}] 执行任务 -> ${type}/${modelId}`, meta);
+        let capabilities = null;
+        if (agentRequest) {
+            try {
+                capabilities = registry.getCapabilities(type, modelId);
+            } catch (error) {
+                logger.warn('工作池', `[${this.name}] Agent 策略选择失败`, {
+                    code: error.code || 'AGENT_INVALID_REQUEST',
+                    adapter: type,
+                    model: modelId,
+                    ...safeMeta
+                });
+                return {
+                    error: error.message,
+                    errorCode: error.code || 'AGENT_PROVIDER_ERROR',
+                    retryable: false
+                };
+            }
+        }
+
+        logger.info('工作池', `[${this.name}] 执行任务 -> ${type}/${modelId}`, {
+            ...safeMeta,
+            ...(agentRequest ? {
+                agentMode: true,
+                agentProtocol: agentRequest.protocol,
+                agentCapabilities: capabilities
+            } : {})
+        });
 
         const subContext = {
             ...ctx,
@@ -488,11 +523,50 @@ export class Worker {
         };
 
         // 扩展 meta，添加 adapter 和 model 信息
-        const enrichedMeta = { ...meta, adapter: type, model: modelId };
+        const enrichedMeta = {
+            ...safeMeta,
+            ...(agentRequest ? {
+                agentMode: true,
+                agentProtocol: agentRequest.protocol,
+                agentCapabilities: capabilities
+            } : {}),
+            adapter: type,
+            model: modelId
+        };
 
         this.busyCount++;
         try {
-            // 传递原始 modelId，由适配器自己解析
+            if (agentRequest) {
+                try {
+                    return await executeAgentRequest(subContext, agentRequest, {
+                        adapterId: type,
+                        modelId,
+                        route: agentRequest.metadata?.route,
+                        config: this.globalConfig,
+                        capabilityOverride: capabilities?.toolStrategyHint
+                            ? { strategyId: capabilities.toolStrategyHint }
+                            : (capabilities?.nativeToolCalling ? { native: true } : undefined),
+                        imagePaths: paths,
+                        meta: enrichedMeta,
+                        generate: (generateContext, generatedPrompt, generatedPaths, generatedModel, generatedMeta) =>
+                            adapter.generate(generateContext, generatedPrompt, generatedPaths, generatedModel, generatedMeta)
+                    });
+                } catch (error) {
+                    logger.warn('工作池', `[${this.name}] Agent Parser/Provider 拒绝请求`, {
+                        code: error.code || 'AGENT_PROVIDER_PARSE_FAILED',
+                        adapter: type,
+                        model: modelId,
+                        ...safeMeta
+                    });
+                    return {
+                        error: error.message,
+                        errorCode: error.code || 'AGENT_PROVIDER_PARSE_FAILED',
+                        retryable: error.retryable === true
+                    };
+                }
+            }
+
+            // Legacy 路径继续传递原始 prompt，不经过 Agent IR 渲染。
             return await adapter.generate(subContext, prompt, paths, modelId, enrichedMeta);
         } finally {
             this.busyCount--;

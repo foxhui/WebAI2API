@@ -1,12 +1,13 @@
 {
 	"name": "webai-2api",
 	"version": "3.0.0",
-	"description": "基于 Playwright + Camoufox 的自动化图像生成工具",
+	"description": "Agent-ready WebAI2API fork with OpenAI-compatible tool calling",
 	"license": "MIT",
 	"author": "foxhui",
 	"type": "module",
 	"scripts": {
 		"start": "node supervisor.js",
+		"test": "node --test",
 		"genkey": "node scripts/genkey.js",
 		"init": "node scripts/init.js",
 		"postinstall": "node scripts/postinstall.js"
@@ -19,6 +20,7 @@
 	},
 	"dependencies": {
 		"@inquirer/prompts": "^8.0.1",
+		"ajv": "8.17.1",
 		"better-sqlite3": "^12.5.0",
 		"camoufox-js": "^0.8.3",
 		"compressing": "^2.0.0",

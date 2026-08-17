@@ -287,7 +287,7 @@ export async function initBrowserBase(config, options = {}) {
         executable_path: browserConfig.path || undefined,
         headless: headlessMode,
         user_data_dir: userDataDir,
-        ff_version: 135,
+        // ff_version: 135,
         fingerprint: myFingerprint,
         os: currentOS,
         i_know_what_im_doing: true,

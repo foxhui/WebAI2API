@@ -3,3 +3,4 @@ data/
 test/
 config.yaml
 camoufox/
+.tmp/

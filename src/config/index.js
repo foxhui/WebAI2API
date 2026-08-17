@@ -258,6 +258,44 @@ export function loadConfig() {
         config.browser.humanizeCursor = true;
     }
 
+    // Agent Tool Calling 兼容层默认关闭，避免改变既有聊天行为
+    if (!config.agentCompatibility || typeof config.agentCompatibility !== 'object') {
+        config.agentCompatibility = {};
+    }
+    if (config.agentCompatibility.enabled === undefined) {
+        config.agentCompatibility.enabled = false;
+    }
+    if (config.agentCompatibility.conversationTtlMs === undefined) {
+        config.agentCompatibility.conversationTtlMs = 15 * 60 * 1000;
+    }
+    if (config.agentCompatibility.maxStoredResponses === undefined) {
+        config.agentCompatibility.maxStoredResponses = 500;
+    }
+    if (config.agentCompatibility.nativePassThrough === undefined) {
+        config.agentCompatibility.nativePassThrough = false;
+    }
+    if (config.agentCompatibility.temporaryChat === undefined) {
+        config.agentCompatibility.temporaryChat = true;
+    }
+    if (config.agentCompatibility.forceInitialToolChoice === undefined) {
+        config.agentCompatibility.forceInitialToolChoice = false;
+    }
+    if (config.agentCompatibility.forceInitialToolName === undefined) {
+        config.agentCompatibility.forceInitialToolName = null;
+    }
+    if (config.agentCompatibility.forceSyntheticToolChoiceTurns === undefined) {
+        config.agentCompatibility.forceSyntheticToolChoiceTurns = 0;
+    }
+    if (config.agentCompatibility.maxSyntheticToolRetries === undefined) {
+        config.agentCompatibility.maxSyntheticToolRetries = 0;
+    }
+    if (config.agentCompatibility.retrySyntheticAutoFinal === undefined) {
+        config.agentCompatibility.retrySyntheticAutoFinal = false;
+    }
+    if (config.agentCompatibility.maxSyntheticInstructionChars === undefined) {
+        config.agentCompatibility.maxSyntheticInstructionChars = 12000;
+    }
+
     // 设置 Pool 配置默认值
     if (!config.backend) config.backend = {};
     if (!config.backend.pool) config.backend.pool = {};

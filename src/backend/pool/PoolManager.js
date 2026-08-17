@@ -167,6 +167,7 @@ export class PoolManager {
      * 分发生图任务（支持故障转移）
      */
     async generate(ctx, prompt, paths, modelId, meta) {
+        const { agentRequest, ...safeMeta } = meta || {};
         const failoverConfig = this.config.backend?.pool?.failover || {};
         const failoverEnabled = failoverConfig.enabled !== false;
         const maxRetries = failoverConfig.maxRetries || 2;
@@ -209,9 +210,9 @@ export class PoolManager {
             },
             {
                 maxRetries,
-                meta,
+                meta: safeMeta,
                 onRetry: (worker, error) => {
-                    logger.warn('工作池', `[${worker.name}] 失败，尝试下一个 Worker...`, { error, ...meta });
+                    logger.warn('工作池', `[${worker.name}] 失败，尝试下一个 Worker...`, { error, ...safeMeta });
                 }
             }
         );
@@ -222,10 +223,11 @@ export class PoolManager {
      * @private
      */
     async _safeExecuteWorker(worker, ctx, prompt, paths, modelId, meta) {
+        const { agentRequest, ...safeMeta } = meta || {};
         try {
             return await worker.generate(ctx, prompt, paths, modelId, meta);
         } catch (err) {
-            logger.error('工作池', `[${worker.name}] 执行异常`, { error: err.message, ...meta });
+            logger.error('工作池', `[${worker.name}] 执行异常`, { error: err.message, ...safeMeta });
             return normalizeError(err.message || '执行异常');
         }
     }
