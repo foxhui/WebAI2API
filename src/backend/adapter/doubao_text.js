@@ -36,9 +36,10 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
     // 模型 ID 到菜单项无障碍名称的正则表达式映射（兼容英文、简繁体中文）
     const MODEL_MENU_MAP = {
-        'seed': /Fast Solves most questions|快速 适用于大部分情况|快速 適用於大部分情況/,
-        'seed-thinking': /Think Solves more complex problems|思考 擅长解决更难的问题|思考 擅長解決更難的問題/,
-        'seed-pro': /Pro Advanced Pro model|专家 研究级智能模型|專家 研究級智慧模型/
+        //进行最新简体中文兼容
+        'seed': /豆包 快速|Fast Solves most questions|快速 适用于大部分情况|快速 適用於大部分情況/,
+        'seed-thinking': /豆包 快速|Think Solves more complex problems|思考 擅长解决更难的问题|思考 擅長解決更難的問題/,
+        'seed-pro': /豆包 2.1 Turbo|Pro Advanced Pro model|专家 研究级智能模型|專家 研究級智慧模型/
     };
 
     try {
@@ -46,7 +47,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         await gotoWithCheck(page, TARGET_URL);
 
         // 1. 等待输入框加载
-        const inputLocator = page.locator('textarea.semi-input-textarea');
+        const inputLocator = page.locator('div.tiptap.ProseMirror[contenteditable="true"]');
         await waitForInput(page, inputLocator, { click: false });
 
         // 2. 选择模型
@@ -56,7 +57,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         // 给予 1 秒的缓冲时间等待 React 渲染按钮
         await sleep(1000); // 确保有一定的渲染时间
-        const modelSelectorBtn = page.locator('#input-engine-container button[aria-haspopup="menu"]')
+        const modelSelectorBtn = page.locator('[data-valid-btn="model-select-action-btn"]')
             .filter({ hasText: /Fast|Think|Pro|快速|思考|专家|專家/ })
             .first();
         let selectorExists = false;
