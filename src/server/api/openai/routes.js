@@ -9,6 +9,9 @@ import { ERROR_CODES } from '../../errors.js';
 import { sendJson, sendApiError } from '../../respond.js';
 import { parseRequest } from './parse.js';
 
+/** 请求体大小上限（16 MiB）；超过后停止读取并返回 413 */
+const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
+
 /**
  * 创建 OpenAI API 路由处理器
  * @param {object} context - 路由上下文
@@ -72,7 +75,19 @@ export function createOpenAIRouter(context) {
      */
     async function handleChatCompletions(req, res, requestId) {
         const chunks = [];
+        let receivedBytes = 0;
         for await (const chunk of req) {
+            receivedBytes += chunk.length;
+            if (receivedBytes > MAX_REQUEST_BYTES) {
+                // 超过上限：丢弃已缓冲数据，断开请求流，按统一错误格式返回 413
+                chunks.length = 0;
+                sendApiError(res, {
+                    code: ERROR_CODES.PAYLOAD_TOO_LARGE,
+                    message: `请求体超过 ${MAX_REQUEST_BYTES / (1024 * 1024)} MiB 上限`
+                });
+                req.destroy();
+                return;
+            }
             chunks.push(chunk);
         }
 
