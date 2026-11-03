@@ -47,6 +47,8 @@ export const ERROR_CODES = {
     INTERNAL_ERROR: 'INTERNAL_ERROR',
     /** 生成失败 */
     GENERATION_FAILED: 'GENERATION_FAILED',
+    /** 请求体超过大小限制 */
+    PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
 };
 
 /**
@@ -113,6 +115,11 @@ const ERROR_DETAILS = {
         message: '图片生成失败',
         status: 502,
         type: ERROR_TYPES.SERVER_ERROR,
+    },
+    [ERROR_CODES.PAYLOAD_TOO_LARGE]: {
+        message: '请求体超过大小限制',
+        status: 413,
+        type: ERROR_TYPES.INVALID_REQUEST,
     },
 };
 
